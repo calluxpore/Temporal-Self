@@ -18,6 +18,7 @@ interface RecallModalProps {
 
 export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: RecallModalProps) {
   const scheduleNextReview = useMemoryStore((s) => s.scheduleNextReview);
+  const logStudyRecallAnswered = useMemoryStore((s) => s.logStudyRecallAnswered);
   const [active, setActive] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const images = getMemoryImages(memory);
@@ -41,16 +42,19 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
 
   const handleRemember = () => {
     scheduleNextReview(memory.id, true);
+    logStudyRecallAnswered(memory.id, 'remember');
     onAnswered();
   };
 
   const handleShowMe = () => {
     scheduleNextReview(memory.id, false);
+    logStudyRecallAnswered(memory.id, 'show_me');
     onShowMemory(memory);
     // Don't call onAnswered() here — parent closes recall modal and opens viewer; when viewer closes, parent will advance to next memory
   };
 
   const handleSkip = () => {
+    logStudyRecallAnswered(memory.id, 'skip');
     onAnswered();
   };
 

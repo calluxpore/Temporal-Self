@@ -18,6 +18,11 @@ import { FavoritesToggle } from './components/FavoritesToggle';
 import { ExportImportButtons } from './components/ExportImportButtons';
 import { LocationSearch } from './components/LocationSearch';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { OnboardingOverlay, ONBOARDING_STEP_COUNT } from './components/OnboardingOverlay';
+import splashLogo from '../_assets/TS_Logo.png';
+
+const SPLASH_SEEN_STORAGE_KEY = 'temporal-self-splash-seen';
+const ONBOARDING_SEEN_STORAGE_KEY = 'temporal-self-onboarding-seen';
 
 function AppContent() {
   const map = useMapRef();
@@ -37,10 +42,15 @@ function AppContent() {
   const recallSessionQueue = useMemoryStore((s) => s.recallSessionQueue);
   const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
   const endRecallSession = useMemoryStore((s) => s.endRecallSession);
+  const [showSplash, setShowSplash] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(SPLASH_SEEN_STORAGE_KEY) !== 'true';
+  });
   const recallMemory = useMemoryStore((s) =>
     recallModalMemoryId ? s.memories.find((m) => m.id === recallModalMemoryId) ?? null : null
   );
   const [viewerOpenedFromRecall, setViewerOpenedFromRecall] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
 
   const onRequestNewMemory = useCallback(() => {
     if (map) {
@@ -58,7 +68,13 @@ function AppContent() {
 
   const showAddModal = isAddingMemory && pendingLatLng;
   const showEditModal = !!editingMemory;
-  const hasOverlay = showAddModal || showEditModal || !!selectedMemory || !!recallModalMemoryId;
+  const hasOverlay =
+    showSplash ||
+    onboardingStep !== null ||
+    showAddModal ||
+    showEditModal ||
+    !!selectedMemory ||
+    !!recallModalMemoryId;
 
   useEffect(() => {
     if (hasOverlay) {
@@ -95,15 +111,58 @@ function AppContent() {
     setSelectedMemory(null);
   }, [viewerOpenedFromRecall, setSelectedMemory]);
 
+  const dismissSplash = useCallback(() => {
+    setShowSplash(false);
+    window.localStorage.setItem(SPLASH_SEEN_STORAGE_KEY, 'true');
+    // If onboarding has never been seen, start from the first step after splash.
+    if (window.localStorage.getItem(ONBOARDING_SEEN_STORAGE_KEY) !== 'true') {
+      setOnboardingStep(0);
+    }
+  }, []);
+
+  const handleOnboardingNext = useCallback(() => {
+    setOnboardingStep((prev) => {
+      if (prev == null) return prev;
+      const next = prev + 1;
+      if (next >= ONBOARDING_STEP_COUNT) {
+        window.localStorage.setItem(ONBOARDING_SEEN_STORAGE_KEY, 'true');
+        return null;
+      }
+      return next;
+    });
+  }, []);
+
+  const handleOnboardingSkip = useCallback(() => {
+    window.localStorage.setItem(ONBOARDING_SEEN_STORAGE_KEY, 'true');
+    setOnboardingStep(null);
+  }, []);
+
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--color-map-water)]" id="main-content" role="main">
+      {showSplash && (
+        <button
+          type="button"
+          aria-label="Enter app"
+          onClick={dismissSplash}
+          className="fixed inset-0 z-[10000] flex cursor-pointer items-center justify-center bg-black/10 p-4 backdrop-blur-lg"
+        >
+          <img
+            src={splashLogo}
+            alt="Temporal Self logo"
+            className="block h-auto w-full max-w-[min(92vw,860px)] object-contain drop-shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+          />
+          <span className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-full border border-white/20 bg-black/35 px-4 py-2 font-mono text-xs uppercase tracking-wider text-white/90">
+            Click anywhere to enter
+          </span>
+        </button>
+      )}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[9999] focus:rounded focus:bg-surface focus:px-3 focus:py-2 focus:font-mono focus:text-sm focus:text-accent focus:outline-none focus:ring-2 focus:ring-accent"
       >
         Skip to main content
       </a>
-      <MapView />
+      <MapView splashActive={showSplash} onboardingActive={onboardingStep !== null} />
       <Sidebar />
       <LocationSearch />
       <ThemeToggle />
@@ -150,6 +209,14 @@ function AppContent() {
             if (rest.length === 0) endRecallSession();
             setRecallModalMemoryId(rest[0] ?? null);
           }}
+        />
+      )}
+      {onboardingStep !== null && !showSplash && (
+        <OnboardingOverlay
+          step={onboardingStep}
+          totalSteps={ONBOARDING_STEP_COUNT}
+          onNext={handleOnboardingNext}
+          onSkip={handleOnboardingSkip}
         />
       )}
     </div>

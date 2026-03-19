@@ -6,14 +6,35 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.pid
+*.pid.lock
 
 node_modules
 dist
 dist-ssr
 *.local
+coverage
+.cache
+.eslintcache
+*.tsbuildinfo
+.rollup.cache
+.vite
+.turbo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+*.tmp
+*.temp
 
 # Electron / electron-builder output
 release/
+
+# GitHub Pages build output (optional; ignored when using GH Actions deploy)
+docs/
 
 # Editor directories and files
 .vscode/*

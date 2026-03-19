@@ -167,7 +167,7 @@ function MemoryListItem({
         }}
         className="flex-shrink-0 flex min-h-[32px] min-w-[32px] cursor-grab active:cursor-grabbing items-center justify-center p-1.5 text-text-muted opacity-60 group-hover/mem:opacity-100"
         aria-hidden
-        title="Drag to reorder"
+        title="Reorder"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="9" cy="6" r="1.5" />
@@ -201,7 +201,7 @@ function MemoryListItem({
                 setEditingLabel(true);
               }}
               className="flex h-full w-full items-center justify-center rounded text-sm text-text-secondary transition-colors hover:bg-surface hover:text-accent"
-              title="Click to set emoji or icon"
+              title="Icon"
               aria-label="Edit icon or emoji"
             >
               {effectiveLabel}
@@ -260,7 +260,7 @@ function MemoryListItem({
         }}
         className="flex-shrink-0 touch-target min-h-[28px] min-w-[28px] p-1 text-text-muted hover:text-accent active:text-accent"
         aria-label={isHidden ? 'Show on map' : 'Hide from map'}
-        title={isHidden ? 'Show on map' : 'Hide from map'}
+          title={isHidden ? 'Show' : 'Hide'}
       >
         {isHidden ? (
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -458,7 +458,7 @@ function GroupSection({
               }}
               className="touch-target flex min-h-[28px] min-w-[28px] flex-shrink-0 items-center justify-center p-1 text-text-muted hover:text-accent"
               aria-label={isHidden ? 'Show group on map' : 'Hide group from map'}
-              title={isHidden ? 'Show on map' : 'Hide from map'}
+              title={isHidden ? 'Show' : 'Hide'}
             >
               {isHidden ? (
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -809,7 +809,7 @@ export function Sidebar() {
         <div className="flex-1 overflow-y-auto px-1.5 py-1">
           {sidebarView === 'calendar' && (
             <CalendarView
-              memories={visibleMemories}
+              memories={memories}
               onMemoryClick={handleMemoryClick}
               onDateFilter={setDateFilter}
               selectedDateFrom={dateFilterFrom}
@@ -965,7 +965,7 @@ export function Sidebar() {
               disabled={undoStack.length === 0}
               className="font-mono min-h-[24px] flex-1 rounded border border-border px-1.5 text-[10px] text-text-muted transition-colors hover:bg-surface-elevated hover:text-text-primary disabled:opacity-40 disabled:pointer-events-none"
               aria-label="Undo"
-              title="Undo (Ctrl+Z)"
+              title="Undo"
             >
               Undo
             </button>
@@ -975,7 +975,7 @@ export function Sidebar() {
               disabled={redoStack.length === 0}
               className="font-mono min-h-[24px] flex-1 rounded border border-border px-1.5 text-[10px] text-text-muted transition-colors hover:bg-surface-elevated hover:text-text-primary disabled:opacity-40 disabled:pointer-events-none"
               aria-label="Redo"
-              title="Redo (Ctrl+Shift+Z)"
+              title="Redo"
             >
               Redo
             </button>
@@ -1049,7 +1049,7 @@ export function Sidebar() {
       <ConfirmDialog
         key={confirmBulkDelete ? 'open' : 'closed'}
         open={confirmBulkDelete}
-        title="Delete selected memories"
+        title="Delete"
         message={`Delete ${selectedMemoryIds.length} selected memory(ies) from the atlas?`}
         confirmLabel="Delete"
         cancelLabel="Cancel"

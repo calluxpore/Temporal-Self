@@ -100,6 +100,7 @@ export function CalendarView({
         ))}
         {days.map(({ date, day, count }) => {
           const hasMemories = count > 0;
+          const isSelected = selectedDateFrom === date && selectedDateTo === date;
           return (
             <div
               key={date}
@@ -109,11 +110,19 @@ export function CalendarView({
                 type="button"
                 onClick={() => onDateFilter(date, date)}
                 className={`flex h-full w-full flex-col items-center justify-center rounded text-[10px] transition-colors ${
-                  hasMemories ? 'text-accent hover:bg-accent-glow' : 'text-text-muted hover:bg-surface-elevated'
-                } ${selectedDateFrom === date ? 'ring-1 ring-accent' : ''}`}
+                  hasMemories
+                    ? 'cursor-pointer text-accent hover:bg-accent-glow'
+                    : 'cursor-pointer text-text-muted hover:bg-surface-elevated'
+                } ${isSelected ? 'ring-1 ring-accent' : ''}`}
                 title={hasMemories ? `${count} memory(ies) – click to filter` : 'Click to filter by this date'}
               >
                 <span>{day}</span>
+                <span
+                  aria-hidden
+                  className={`mt-0.5 h-1.5 w-1.5 rounded-full ${
+                    hasMemories ? 'bg-accent/90' : 'bg-transparent'
+                  }`}
+                />
                 {count > 0 && <span className="text-[8px] opacity-80">{count}</span>}
               </button>
             </div>

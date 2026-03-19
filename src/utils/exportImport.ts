@@ -1,27 +1,50 @@
 import type { Memory, Group } from '../types/memory';
+import type { StudyCheckpointTag, StudyEvent } from '../types/study';
 
 const EXPORT_JSON_VERSION = 1;
+
+export interface ExportAppState {
+  theme?: 'dark' | 'light';
+  mapView?: { lat: number; lng: number; zoom: number } | null;
+  hasChosenStartLocation?: boolean;
+  defaultGroupId?: string | null;
+  sidebarWidth?: number;
+  skipDeleteConfirmation?: boolean;
+  recallSessions?: { remembered: number; forgot: number }[];
+
+  // Study mode
+  studyParticipantId?: string | null;
+  studyCheckpointTag?: StudyCheckpointTag | null;
+  studyCheckpointCompletedAt?: Partial<Record<StudyCheckpointTag, string>>;
+  studyEvents?: StudyEvent[];
+}
 
 export interface ExportData {
   version: number;
   exportedAt: string;
   memories: Memory[];
   groups: Group[];
+  appState?: ExportAppState;
 }
 
 /** Build export payload for JSON backup. */
-export function buildExportData(memories: Memory[], groups: Group[]): ExportData {
+export function buildExportData(
+  memories: Memory[],
+  groups: Group[],
+  appState?: ExportAppState
+): ExportData {
   return {
     version: EXPORT_JSON_VERSION,
     exportedAt: new Date().toISOString(),
     memories,
     groups,
+    appState,
   };
 }
 
 /** Serialize to JSON and trigger download. */
-export function exportToJson(memories: Memory[], groups: Group[]): void {
-  const data = buildExportData(memories, groups);
+export function exportToJson(memories: Memory[], groups: Group[], appState?: ExportAppState): void {
+  const data = buildExportData(memories, groups, appState);
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: 'application/json',
   });
@@ -96,6 +119,7 @@ export function parseExportJson(text: string): ExportData {
     exportedAt: typeof o.exportedAt === 'string' ? o.exportedAt : '',
     memories: memories as Memory[],
     groups: groups as Group[],
+    appState: (o.appState ?? undefined) as ExportAppState | undefined,
   };
 }
 
@@ -130,6 +154,11 @@ function normalizeMemory(m: unknown): Memory | null {
     tags: Array.isArray(o.tags) ? (o.tags as unknown[]).filter((t): t is string => typeof t === 'string') : undefined,
     starred: o.starred === true,
     links: Array.isArray(o.links) ? (o.links as unknown[]).filter((u): u is string => typeof u === 'string') : undefined,
+    nextReviewAt: typeof o.nextReviewAt === 'string' ? o.nextReviewAt : null,
+    reviewCount: typeof o.reviewCount === 'number' ? o.reviewCount : 0,
+    intervalDays: typeof o.intervalDays === 'number' ? o.intervalDays : 0,
+    easeFactor: typeof o.easeFactor === 'number' ? o.easeFactor : 2.5,
+    failedReviewCount: typeof o.failedReviewCount === 'number' ? o.failedReviewCount : 0,
   };
 }
 
@@ -143,6 +172,57 @@ function normalizeGroup(g: unknown): Group | null {
     name: typeof o.name === 'string' ? o.name : 'Imported group',
     collapsed: o.collapsed === true,
     hidden: o.hidden === true,
+  };
+}
+
+function normalizeAppState(raw: unknown): ExportAppState {
+  if (raw == null || typeof raw !== 'object') return {};
+  const o = raw as Record<string, unknown>;
+  const mapViewRaw =
+    o.mapView && typeof o.mapView === 'object' ? (o.mapView as Record<string, unknown>) : null;
+  const mapView =
+    mapViewRaw &&
+    typeof mapViewRaw.lat === 'number' &&
+    typeof mapViewRaw.lng === 'number' &&
+    typeof mapViewRaw.zoom === 'number'
+      ? { lat: mapViewRaw.lat, lng: mapViewRaw.lng, zoom: mapViewRaw.zoom }
+      : null;
+  const recallSessions = Array.isArray(o.recallSessions)
+    ? (o.recallSessions as unknown[])
+        .map((s) => {
+          if (s == null || typeof s !== 'object') return null;
+          const r = s as Record<string, unknown>;
+          const remembered = typeof r.remembered === 'number' ? r.remembered : null;
+          const forgot = typeof r.forgot === 'number' ? r.forgot : null;
+          if (remembered == null || forgot == null) return null;
+          return { remembered, forgot };
+        })
+        .filter((s): s is { remembered: number; forgot: number } => s != null)
+    : undefined;
+  return {
+    theme: o.theme === 'light' ? 'light' : o.theme === 'dark' ? 'dark' : undefined,
+    mapView,
+    hasChosenStartLocation:
+      typeof o.hasChosenStartLocation === 'boolean' ? o.hasChosenStartLocation : undefined,
+    defaultGroupId:
+      typeof o.defaultGroupId === 'string' ? o.defaultGroupId : o.defaultGroupId === null ? null : undefined,
+    sidebarWidth: typeof o.sidebarWidth === 'number' ? o.sidebarWidth : undefined,
+    skipDeleteConfirmation:
+      typeof o.skipDeleteConfirmation === 'boolean' ? o.skipDeleteConfirmation : undefined,
+    recallSessions,
+
+    studyParticipantId: 'studyParticipantId' in o ? (typeof o.studyParticipantId === 'string' ? o.studyParticipantId : null) : undefined,
+    studyCheckpointTag:
+      'studyCheckpointTag' in o
+        ? (typeof o.studyCheckpointTag === 'string' ? (o.studyCheckpointTag as StudyCheckpointTag) : null)
+        : undefined,
+    studyCheckpointCompletedAt:
+      'studyCheckpointCompletedAt' in o
+        ? (o.studyCheckpointCompletedAt && typeof o.studyCheckpointCompletedAt === 'object'
+            ? (o.studyCheckpointCompletedAt as Partial<Record<StudyCheckpointTag, string>>)
+            : undefined)
+        : undefined,
+    studyEvents: Array.isArray(o.studyEvents) ? (o.studyEvents as StudyEvent[]) : undefined,
   };
 }
 
@@ -217,7 +297,7 @@ function parseCsvRow(line: string): string[] {
 
 /** Result of importing a file. */
 export type ImportResult =
-  | { ok: true; memories: Memory[]; groups: Group[] }
+  | { ok: true; memories: Memory[]; groups: Group[]; appState?: ExportAppState }
   | { ok: false; error: string };
 
 /** Import from JSON string (full backup). */
@@ -226,7 +306,7 @@ export function importFromJson(text: string): ImportResult {
     const data = parseExportJson(text);
     const memories = data.memories.map(normalizeMemory).filter((m): m is Memory => m != null);
     const groups = data.groups.map(normalizeGroup).filter((g): g is Group => g != null);
-    return { ok: true, memories, groups };
+    return { ok: true, memories, groups, appState: normalizeAppState(data.appState) };
   } catch (e) {
     return {
       ok: false,

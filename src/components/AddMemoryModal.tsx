@@ -29,15 +29,24 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const addGroup = useMemoryStore((s) => s.addGroup);
   const skipDeleteConfirmation = useMemoryStore((s) => s.skipDeleteConfirmation);
   const setSkipDeleteConfirmation = useMemoryStore((s) => s.setSkipDeleteConfirmation);
+  const logStudyMemoryCreated = useMemoryStore((s) => s.logStudyMemoryCreated);
+  const logStudyMemoryUpdated = useMemoryStore((s) => s.logStudyMemoryUpdated);
+  const dateFilterFrom = useMemoryStore((s) => s.dateFilterFrom);
+  const dateFilterTo = useMemoryStore((s) => s.dateFilterTo);
   const isEdit = !!editingMemory;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const effectiveLat = editingMemory ? editingMemory.lat : pending?.lat ?? 0;
   const effectiveLng = editingMemory ? editingMemory.lng : pending?.lng ?? 0;
+  const selectedCalendarDate =
+    dateFilterFrom && dateFilterTo && dateFilterFrom === dateFilterTo ? dateFilterFrom : null;
 
   const [title, setTitle] = useState(editingMemory?.title ?? '');
   const [notes, setNotes] = useState(editingMemory?.notes ?? '');
   const [date, setDate] = useState(
-    () => editingMemory?.date ?? new Date().toISOString().slice(0, 10)
+    () =>
+      editingMemory?.date ??
+      selectedCalendarDate ??
+      new Date().toISOString().slice(0, 10)
   );
   const [imageDataUrls, setImageDataUrls] = useState<string[]>(() =>
     editingMemory ? getMemoryImages(editingMemory) : []
@@ -135,6 +144,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         tags: tagsToSave,
         links: linksToSave,
       });
+      logStudyMemoryUpdated(editingMemory.id);
       setEditingMemory(null);
     } else if (pending) {
       const memory: Memory = {
@@ -155,6 +165,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         reviewCount: 0,
       };
       addMemory(memory);
+      logStudyMemoryCreated(memory.id);
       if (chosenGroupId) setDefaultGroupId(chosenGroupId);
     }
     onClose();

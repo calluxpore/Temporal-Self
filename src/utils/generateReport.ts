@@ -8,20 +8,21 @@ import {
   svgRecallDonut,
   svgRecallByCycle,
 } from './reportCharts';
-
-const TITLE = 'Temporal Self';
-const SUBTITLE = 'Your memory atlas report';
+import reportLogo from '../../_assets/TS_Logo.png';
 
 function placeKey(lat: number, lng: number): string {
   return `${Math.round(lat * 10) / 10},${Math.round(lng * 10) / 10}`;
 }
 
-function formatReportDate(iso: string): string {
+function formatReportDateTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
+    return new Date(iso).toLocaleString(undefined, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
     });
   } catch {
     return iso;
@@ -33,6 +34,93 @@ function formatMonthKey(ym: string): string {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const month = monthNames[parseInt(m || '1', 10) - 1] || m;
   return `${month} ${y}`;
+}
+
+type LoadImageMetaOptions = {
+  makeLightBgTransparent?: boolean;
+  trimTransparentPadding?: boolean;
+};
+
+async function loadImageMeta(
+  url: string,
+  options?: LoadImageMetaOptions
+): Promise<{ dataUrl: string; width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('No canvas context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+
+      if (options?.makeLightBgTransparent) {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          // Remove near-white matte backgrounds that create a visible rectangle in PDF.
+          if (r > 240 && g > 240 && b > 240) {
+            pixels[i + 3] = 0;
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+
+      if (options?.trimTransparentPadding) {
+        const source = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = source.data;
+        let minX = canvas.width;
+        let minY = canvas.height;
+        let maxX = -1;
+        let maxY = -1;
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            const a = pixels[(y * canvas.width + x) * 4 + 3];
+            if (a > 0) {
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX >= minX && maxY >= minY) {
+          const trimmedW = maxX - minX + 1;
+          const trimmedH = maxY - minY + 1;
+          const trimmed = document.createElement('canvas');
+          trimmed.width = trimmedW;
+          trimmed.height = trimmedH;
+          const tctx = trimmed.getContext('2d');
+          if (!tctx) {
+            reject(new Error('No canvas context'));
+            return;
+          }
+          tctx.drawImage(canvas, minX, minY, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
+          resolve({
+            dataUrl: trimmed.toDataURL('image/png'),
+            width: trimmedW,
+            height: trimmedH,
+          });
+          return;
+        }
+      }
+
+      resolve({
+        dataUrl: canvas.toDataURL('image/png'),
+        width: canvas.width,
+        height: canvas.height,
+      });
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = url;
+  });
 }
 
 export type ReportData = {
@@ -102,19 +190,28 @@ export async function generateReportPdf(
   // —— Cover page (Apple-esque: clean, centered, minimal) ——
   doc.setFillColor(248, 248, 252);
   doc.rect(0, 0, pageW, pageH, 'F');
-  doc.setTextColor(30, 30, 38);
-  doc.setFontSize(32);
-  doc.setFont('helvetica', 'bold');
-  doc.text(TITLE, pageW / 2, pageH / 2 - 10, { align: 'center' });
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'normal');
+  try {
+    const logo = await loadImageMeta(reportLogo, {
+      makeLightBgTransparent: true,
+      trimTransparentPadding: true,
+    });
+    const maxLogoW = pageW * 0.78;
+    const maxLogoH = pageH * 0.24;
+    const ratio = logo.width / logo.height;
+    const logoW = Math.min(maxLogoW, maxLogoH * ratio);
+    const logoH = logoW / ratio;
+    const logoX = (pageW - logoW) / 2;
+    const logoY = pageH * 0.2;
+    doc.addImage(logo.dataUrl, 'PNG', logoX, logoY, logoW, logoH);
+  } catch {
+    // If logo fails to load, keep report generation resilient.
+  }
   doc.setTextColor(100, 100, 110);
-  doc.text(SUBTITLE, pageW / 2, pageH / 2 + 4, { align: 'center' });
   doc.setFontSize(11);
   doc.text(
-    `Generated on ${formatReportDate(new Date().toISOString())}`,
+    `Generated on ${formatReportDateTime(new Date().toISOString())}`,
     pageW / 2,
-    pageH / 2 + 18,
+    pageH * 0.64,
     { align: 'center' }
   );
   doc.addPage();

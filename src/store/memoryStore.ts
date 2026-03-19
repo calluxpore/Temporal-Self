@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { idbStorage } from '../utils/idbStorage';
 import { sm2Schedule, QUALITY_REMEMBERED, QUALITY_FAILED } from '../utils/spacedRepetition';
 import type { Memory, PendingLatLng, Group } from '../types/memory';
+import type { StudyCheckpointTag, StudyEvent, StudyRecallAnswer } from '../types/study';
 
 /** [south, north, west, east] */
 export type SearchHighlightBbox = [number, number, number, number];
@@ -67,6 +68,24 @@ interface MemoryState {
   endRecallSession: () => void;
   /** Schedule next spaced-repetition review for a memory. */
   scheduleNextReview: (memoryId: string, remembered: boolean) => void;
+
+  // --- Study mode (research support) ---
+  /** Optional participant identifier for research exports. */
+  studyParticipantId: string | null;
+  /** Which checkpoint this participant is currently completing. */
+  studyCheckpointTag: StudyCheckpointTag | null;
+  /** Timestamps for when each checkpoint was marked complete. */
+  studyCheckpointCompletedAt: Partial<Record<StudyCheckpointTag, string>>;
+  /** Append-only event log used for longitudinal analysis. */
+  studyEvents: StudyEvent[];
+  setStudyParticipantId: (id: string | null) => void;
+  setStudyCheckpointTag: (tag: StudyCheckpointTag | null) => void;
+  markStudyCheckpointComplete: () => void;
+  logStudyMemoryCreated: (memoryId: string) => void;
+  logStudyMemoryUpdated: (memoryId: string) => void;
+  logStudyRecallSessionStarted: (dueCount: number) => void;
+  logStudyRecallAnswered: (memoryId: string, answer: StudyRecallAnswer) => void;
+  logStudyDateFilterChanged: (from: string | null, to: string | null) => void;
   /** When true, delete actions run without confirmation dialog. */
   skipDeleteConfirmation: boolean;
   setSkipDeleteConfirmation: (value: boolean) => void;
@@ -179,6 +198,10 @@ export const useMemoryStore = create<MemoryState>()(
       recallSessions: [],
       currentSessionRemembered: 0,
       currentSessionForgot: 0,
+      studyParticipantId: null,
+      studyCheckpointTag: null,
+      studyCheckpointCompletedAt: {},
+      studyEvents: [],
       skipDeleteConfirmation: false,
 
       setRecallModalMemoryId: (id) => set({ recallModalMemoryId: id }),
@@ -228,12 +251,161 @@ export const useMemoryStore = create<MemoryState>()(
           };
         }),
 
+      // --- Study mode events (research logging) ---
+      setStudyParticipantId: (id) => set({ studyParticipantId: id }),
+      setStudyCheckpointTag: (tag) => set({ studyCheckpointTag: tag }),
+
+      markStudyCheckpointComplete: () =>
+        set((state) => {
+          if (!state.studyCheckpointTag) return state;
+          const ts = new Date().toISOString();
+          const checkpointTag = state.studyCheckpointTag;
+          const event: StudyEvent = {
+            id: crypto.randomUUID(),
+            ts,
+            type: 'checkpoint_completed',
+            participantId: state.studyParticipantId,
+            checkpointTag,
+          };
+          const cap = 5000;
+          const nextEvents =
+            state.studyEvents.length >= cap
+              ? state.studyEvents.slice(state.studyEvents.length - cap + 1)
+              : state.studyEvents;
+          return {
+            studyCheckpointCompletedAt: {
+              ...state.studyCheckpointCompletedAt,
+              [checkpointTag]: ts,
+            },
+            studyEvents: [...nextEvents, event],
+          };
+        }),
+
+      logStudyMemoryCreated: (memoryId) =>
+        set((state) => {
+          const ts = new Date().toISOString();
+          const event: StudyEvent = {
+            id: crypto.randomUUID(),
+            ts,
+            type: 'memory_created',
+            participantId: state.studyParticipantId,
+            checkpointTag: state.studyCheckpointTag,
+            memoryId,
+          };
+          const cap = 5000;
+          const nextEvents =
+            state.studyEvents.length >= cap
+              ? state.studyEvents.slice(state.studyEvents.length - cap + 1)
+              : state.studyEvents;
+          return { studyEvents: [...nextEvents, event] };
+        }),
+
+      logStudyMemoryUpdated: (memoryId) =>
+        set((state) => {
+          const ts = new Date().toISOString();
+          const event: StudyEvent = {
+            id: crypto.randomUUID(),
+            ts,
+            type: 'memory_updated',
+            participantId: state.studyParticipantId,
+            checkpointTag: state.studyCheckpointTag,
+            memoryId,
+          };
+          const cap = 5000;
+          const nextEvents =
+            state.studyEvents.length >= cap
+              ? state.studyEvents.slice(state.studyEvents.length - cap + 1)
+              : state.studyEvents;
+          return { studyEvents: [...nextEvents, event] };
+        }),
+
+      logStudyRecallSessionStarted: (dueCount) =>
+        set((state) => {
+          const ts = new Date().toISOString();
+          const event: StudyEvent = {
+            id: crypto.randomUUID(),
+            ts,
+            type: 'recall_session_started',
+            participantId: state.studyParticipantId,
+            checkpointTag: state.studyCheckpointTag,
+            dueCount,
+          };
+          const cap = 5000;
+          const nextEvents =
+            state.studyEvents.length >= cap
+              ? state.studyEvents.slice(state.studyEvents.length - cap + 1)
+              : state.studyEvents;
+          return { studyEvents: [...nextEvents, event] };
+        }),
+
+      logStudyRecallAnswered: (memoryId, answer) =>
+        set((state) => {
+          const ts = new Date().toISOString();
+          const event: StudyEvent = {
+            id: crypto.randomUUID(),
+            ts,
+            type: 'recall_answered',
+            participantId: state.studyParticipantId,
+            checkpointTag: state.studyCheckpointTag,
+            memoryId,
+            answer,
+          };
+          const cap = 5000;
+          const nextEvents =
+            state.studyEvents.length >= cap
+              ? state.studyEvents.slice(state.studyEvents.length - cap + 1)
+              : state.studyEvents;
+          return { studyEvents: [...nextEvents, event] };
+        }),
+
+      logStudyDateFilterChanged: (from, to) =>
+        set((state) => {
+          const ts = new Date().toISOString();
+          const event: StudyEvent = {
+            id: crypto.randomUUID(),
+            ts,
+            type: 'date_filter_changed',
+            participantId: state.studyParticipantId,
+            checkpointTag: state.studyCheckpointTag,
+            from,
+            to,
+          };
+          const cap = 5000;
+          const nextEvents =
+            state.studyEvents.length >= cap
+              ? state.studyEvents.slice(state.studyEvents.length - cap + 1)
+              : state.studyEvents;
+          return { studyEvents: [...nextEvents, event] };
+        }),
+
       setMemories: (memories) => set({ memories }),
       setGroups: (groups) => set({ groups }),
       setFilterStarred: (filterStarred) => set({ filterStarred }),
       setSortBy: (sortBy) => set({ sortBy }),
       setSortOrder: (sortOrder) => set({ sortOrder }),
-      setDateFilter: (dateFilterFrom, dateFilterTo) => set({ dateFilterFrom, dateFilterTo }),
+      setDateFilter: (dateFilterFrom, dateFilterTo) =>
+        set((state) => {
+          const ts = new Date().toISOString();
+          const event: StudyEvent = {
+            id: crypto.randomUUID(),
+            ts,
+            type: 'date_filter_changed',
+            participantId: state.studyParticipantId,
+            checkpointTag: state.studyCheckpointTag,
+            from: dateFilterFrom,
+            to: dateFilterTo,
+          };
+          const cap = 5000;
+          const nextEvents =
+            state.studyEvents.length >= cap
+              ? state.studyEvents.slice(state.studyEvents.length - cap + 1)
+              : state.studyEvents;
+          return {
+            dateFilterFrom,
+            dateFilterTo,
+            studyEvents: [...nextEvents, event],
+          };
+        }),
       setHeatmapEnabled: (heatmapEnabled) => set({ heatmapEnabled }),
       setMarkersVisible: (markersVisible) => set({ markersVisible }),
       setSidebarView: (sidebarView) => set({ sidebarView }),
@@ -421,7 +593,7 @@ export const useMemoryStore = create<MemoryState>()(
     }),
     {
       name: 'memory-atlas-storage',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         mapView: state.mapView,
@@ -433,6 +605,10 @@ export const useMemoryStore = create<MemoryState>()(
         sidebarWidth: state.sidebarWidth,
         skipDeleteConfirmation: state.skipDeleteConfirmation,
         recallSessions: state.recallSessions,
+        studyParticipantId: state.studyParticipantId,
+        studyCheckpointTag: state.studyCheckpointTag,
+        studyCheckpointCompletedAt: state.studyCheckpointCompletedAt,
+        studyEvents: state.studyEvents,
       }),
       migrate: (persisted: unknown, version: number) => {
         if (persisted == null || typeof persisted !== 'object') return persisted as Record<string, unknown>;
@@ -461,6 +637,15 @@ export const useMemoryStore = create<MemoryState>()(
             ...p,
             mapView: p.mapView ?? null,
             hasChosenStartLocation: p.hasChosenStartLocation ?? false,
+          } as Record<string, unknown>;
+        }
+        if (version < 6) {
+          return {
+            ...p,
+            studyParticipantId: p.studyParticipantId ?? null,
+            studyCheckpointTag: p.studyCheckpointTag ?? null,
+            studyCheckpointCompletedAt: p.studyCheckpointCompletedAt ?? {},
+            studyEvents: Array.isArray(p.studyEvents) ? p.studyEvents : [],
           } as Record<string, unknown>;
         }
         return persisted as Record<string, unknown>;
