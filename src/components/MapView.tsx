@@ -52,6 +52,8 @@ const TILE_URLS: Record<'dark' | 'light' | 'satellite' | 'terrain' | 'outdoor', 
   terrain: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
   outdoor: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 };
+const DEFAULT_CENTER: [number, number] = [43.6532, -79.3832];
+const DEFAULT_ZOOM = 11;
 
 function MapClickHandler({
   onMapClick,
@@ -314,7 +316,6 @@ function usePrefersHover() {
   );
   useEffect(() => {
     const m = window.matchMedia('(hover: hover)');
-    setPrefersHover(m.matches);
     const fn = () => setPrefersHover(m.matches);
     m.addEventListener('change', fn);
     return () => m.removeEventListener('change', fn);
@@ -332,6 +333,11 @@ export function MapView() {
   const prefersHover = usePrefersHover();
   const isMd = useIsMd();
   const sidebarOpen = useMemoryStore((s) => s.sidebarOpen);
+  const mapView = useMemoryStore((s) => s.mapView);
+  const hasChosenStartLocation = useMemoryStore((s) => s.hasChosenStartLocation);
+  const setMapView = useMemoryStore((s) => s.setMapView);
+  const setHasChosenStartLocation = useMemoryStore((s) => s.setHasChosenStartLocation);
+  const showStartLocationPrompt = !hasChosenStartLocation && !mapView;
 
   const memories = useMemoryStore((s) => s.memories);
   const filterStarred = useMemoryStore((s) => s.filterStarred);
@@ -467,6 +473,23 @@ export function MapView() {
     };
   }, []);
 
+  // Persist last map position/zoom so the app reopens where user left off.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const persistView = () => {
+      const center = map.getCenter();
+      setMapView({ lat: center.lat, lng: center.lng, zoom: map.getZoom() });
+    };
+    map.on('moveend', persistView);
+    map.on('zoomend', persistView);
+    persistView();
+    return () => {
+      map.off('moveend', persistView);
+      map.off('zoomend', persistView);
+    };
+  }, [setMapView]);
+
   // When sidebar selects a memory, flyTo is done by Sidebar; we show the card when the map finishes moving.
   useEffect(() => {
     if (!cardTargetMemoryId) return;
@@ -497,8 +520,8 @@ export function MapView() {
         ref={useCallback((r: L.Map | null) => {
           mapRef.current = r ?? null;
         }, [])}
-        center={[43.6532, -79.3832]}
-        zoom={11}
+        center={mapView ? [mapView.lat, mapView.lng] : DEFAULT_CENTER}
+        zoom={mapView?.zoom ?? DEFAULT_ZOOM}
         className="h-full w-full animate-map-in opacity-0"
         style={{ cursor: 'crosshair' }}
         zoomControl={false}
@@ -539,6 +562,54 @@ export function MapView() {
             closeHoverCard();
           }}
         />
+      )}
+      {showStartLocationPrompt && (
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-4 shadow-xl">
+            <h3 className="font-display text-lg font-semibold text-text-primary">Preferred start location</h3>
+            <p className="mt-2 font-body text-sm text-text-secondary">
+              Use your current location each time as your map starting point?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded border border-border bg-surface px-3 py-1.5 text-text-primary hover:bg-surface-elevated"
+                onClick={() => {
+                  setHasChosenStartLocation(true);
+                }}
+              >
+                Use default
+              </button>
+              <button
+                type="button"
+                className="rounded bg-accent px-3 py-1.5 text-white hover:opacity-90"
+                onClick={() => {
+                  const map = mapRef.current;
+                  if (!map || !navigator.geolocation) {
+                    setHasChosenStartLocation(true);
+                    return;
+                  }
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      const lat = pos.coords.latitude;
+                      const lng = pos.coords.longitude;
+                      const zoom = 13;
+                      map.setView([lat, lng], zoom, { animate: true });
+                      setMapView({ lat, lng, zoom });
+                      setHasChosenStartLocation(true);
+                    },
+                    () => {
+                      setHasChosenStartLocation(true);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                  );
+                }}
+              >
+                Use current location
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

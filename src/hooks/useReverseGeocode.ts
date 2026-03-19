@@ -19,12 +19,14 @@ export function useReverseGeocode(lat: number, lng: number): { location: string 
   useEffect(() => {
     const cachedNow = cache.get(key);
     if (cachedNow !== undefined) {
-      setLocation(cachedNow);
-      setLoading(false);
+      queueMicrotask(() => {
+        setLocation(cachedNow);
+        setLoading(false);
+      });
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
     const params = new URLSearchParams({
       lat: String(lat),
       lon: String(lng),

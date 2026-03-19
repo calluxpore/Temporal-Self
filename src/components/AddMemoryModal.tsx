@@ -65,10 +65,6 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const { location, loading: locationLoading } = useReverseGeocode(effectiveLat, effectiveLng);
   useFocusTrap(modalRef, !!(pending || editingMemory));
 
-  useEffect(() => {
-    setMainImageFocus('center');
-  }, [imageDataUrls[0]]);
-
   const handleFiles = useCallback(
     async (files: FileList | null) => {
       if (!files?.length) return;
@@ -87,7 +83,10 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           setUploadError('Failed to process an image.');
         }
       }
-      if (toAdd.length) setImageDataUrls((prev) => [...prev, ...toAdd]);
+      if (toAdd.length) {
+        setImageDataUrls((prev) => [...prev, ...toAdd]);
+        setMainImageFocus('center');
+      }
     },
     []
   );
@@ -104,6 +103,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
 
   const removeImageAt = (index: number) => {
     setImageDataUrls((prev) => prev.filter((_, i) => i !== index));
+    setMainImageFocus('center');
   };
 
   const addTag = () => {
@@ -190,18 +190,6 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     });
     return () => cancelAnimationFrame(t);
   }, []);
-
-  useEffect(() => {
-    if (!editingMemory && pending) {
-      setGroupId(defaultGroupId ?? null);
-    }
-  }, [editingMemory, pending, defaultGroupId]);
-
-  useEffect(() => {
-    if (editingMemory) {
-      setCustomLabel(editingMemory.customLabel ?? '');
-    }
-  }, [editingMemory?.id, editingMemory?.customLabel]);
 
   useEffect(() => {
     if (!emojiPickerOpen || !iconButtonRef.current) return;
@@ -634,6 +622,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         </div>
       </div>
       <ConfirmDialog
+        key={showDeleteConfirm ? 'open' : 'closed'}
         open={showDeleteConfirm}
         title="Delete memory"
         message={editingMemory ? `Delete "${editingMemory.title || 'Untitled'}" from the atlas?` : ''}

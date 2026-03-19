@@ -56,12 +56,13 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
   const skipDeleteConfirmation = useMemoryStore((s) => s.skipDeleteConfirmation);
   const setSkipDeleteConfirmation = useMemoryStore((s) => s.setSkipDeleteConfirmation);
   const [parallax, setParallax] = useState({ x: 0, y: 0 });
-  const [hasHover, setHasHover] = useState(false);
+  const [hasHover, setHasHover] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(hover: hover)').matches : false
+  );
   const photoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const m = window.matchMedia('(hover: hover)');
-    setHasHover(m.matches);
     const fn = () => setHasHover(m.matches);
     m.addEventListener('change', fn);
     return () => m.removeEventListener('change', fn);
@@ -109,7 +110,8 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
   useFocusTrap(viewerRef, true);
   const currentImage = images[imageIndex] ?? null;
   useEffect(() => {
-    setPhotoFocus('center');
+    const t = requestAnimationFrame(() => setPhotoFocus('center'));
+    return () => cancelAnimationFrame(t);
   }, [imageIndex]);
   useEffect(() => {
     const t = requestAnimationFrame(() => setActive(true));
@@ -240,6 +242,7 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
         </div>
       </div>
       <ConfirmDialog
+        key={showRemoveConfirm ? 'open' : 'closed'}
         open={showRemoveConfirm}
         title="Remove memory"
         message="Remove this memory from the atlas?"

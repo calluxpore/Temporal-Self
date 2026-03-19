@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useMapRef } from '../context/MapContext';
+import { useMapRef } from '../context/mapContextState';
 import { useMemoryStore } from '../store/memoryStore';
 import { useIsMd } from '../hooks/useMediaQuery';
 import type { SearchHighlightBbox } from '../store/memoryStore';
@@ -124,14 +124,18 @@ export function LocationSearch() {
 
   useEffect(() => {
     if (!debouncedQuery.trim()) {
-      setResults([]);
-      setError(null);
-      setLoading(false);
+      queueMicrotask(() => {
+        setResults([]);
+        setError(null);
+        setLoading(false);
+      });
       return;
     }
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
     searchLocation(debouncedQuery, controller.signal)
       .then(({ results: data, error: err }) => {
         setResults(data);

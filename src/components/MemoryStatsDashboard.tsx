@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Memory } from '../types/memory';
 import { isDueForReview } from '../utils/spacedRepetition';
 
@@ -9,6 +9,12 @@ interface MemoryStatsDashboardProps {
 }
 
 export function MemoryStatsDashboard({ memories, recallSessions }: MemoryStatsDashboardProps) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const stats = useMemo(() => {
     const total = memories.length;
     const remembered = memories.reduce((sum, m) => sum + (m.reviewCount ?? 0), 0);
@@ -31,7 +37,6 @@ export function MemoryStatsDashboard({ memories, recallSessions }: MemoryStatsDa
       forgot: s.forgot,
       total: s.remembered + s.forgot,
     }));
-    const maxInSession = Math.max(1, ...sessionsForDisplay.map((s) => s.total));
 
     // Never attempted recall (no successful and no failed)
     const neverAttempted = memories.filter(
@@ -41,11 +46,11 @@ export function MemoryStatsDashboard({ memories, recallSessions }: MemoryStatsDa
     // Attempted at least once (in recall session)
     const attemptedAtLeastOnce = total - neverAttempted;
 
-    // Next review: due now vs scheduled later
+    // Next review: due now vs scheduled later (use stable `now` to avoid impure Date.now() in render)
     const scheduledLater = memories.filter((m) => {
       if (m.nextReviewAt == null || m.nextReviewAt === '') return false;
       try {
-        return new Date(m.nextReviewAt).getTime() > Date.now();
+        return new Date(m.nextReviewAt).getTime() > now;
       } catch {
         return false;
       }
@@ -68,7 +73,7 @@ export function MemoryStatsDashboard({ memories, recallSessions }: MemoryStatsDa
       scheduledLater,
       struggledAtLeastOnce,
     };
-  }, [memories, recallSessions]);
+  }, [memories, recallSessions, now]);
 
   return (
     <div className="space-y-4 py-2 font-mono text-[11px]">

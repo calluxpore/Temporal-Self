@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface ConfirmDialogProps {
@@ -31,10 +31,6 @@ export function ConfirmDialog({
   const ref = useRef<HTMLDivElement>(null);
   const [dontAskAgainChecked, setDontAskAgainChecked] = useState(false);
   useFocusTrap(ref, open);
-
-  useEffect(() => {
-    if (!open) setDontAskAgainChecked(false);
-  }, [open]);
 
   if (!open) return null;
   return (

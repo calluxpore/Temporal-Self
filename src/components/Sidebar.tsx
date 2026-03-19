@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { useMapRef } from '../context/MapContext';
+import { useMapRef } from '../context/mapContextState';
 import { useIsMd } from '../hooks/useMediaQuery';
 import { useMemoryStore } from '../store/memoryStore';
 import { SearchBar } from './SearchBar';
@@ -347,15 +347,15 @@ function GroupSection({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isListDragOver, setIsListDragOver] = useState(false);
   const [draggedMemoryId, setDraggedMemoryId] = useState<string | null>(null);
-  const draggedIdRef = useRef<string | null>(null);
   const [activeDropLineId, setActiveDropLineId] = useState<string | null>(null);
   const updateGroup = useMemoryStore((s) => s.updateGroup);
   const memoryIds = memories.map((m) => m.id);
-  const isSameGroupDrag =
-    memoryIds.includes(draggedMemoryId ?? '') || memoryIds.includes(draggedIdRef.current ?? '');
-  useEffect(() => setEditValue(name), [name]);
+  const isSameGroupDrag = memoryIds.includes(draggedMemoryId ?? '');
   useEffect(() => {
-    if (openForRename) setEditingName(true);
+    queueMicrotask(() => setEditValue(name));
+  }, [name]);
+  useEffect(() => {
+    if (openForRename) queueMicrotask(() => setEditingName(true));
   }, [openForRename]);
 
   const handleBlur = () => {
@@ -497,7 +497,6 @@ function GroupSection({
           onDrop={handleListDrop}
           onDragEnd={() => {
             setDraggedMemoryId(null);
-            draggedIdRef.current = null;
             setActiveDropLineId(null);
             setIsListDragOver(false);
           }}
@@ -531,7 +530,6 @@ function GroupSection({
                 isSelected={selectedMemoryIds?.includes(m.id)}
                 onDelete={onMemoryDelete ? (e) => onMemoryDelete(e, m) : undefined}
                 onDragStartWithId={(id) => {
-                  draggedIdRef.current = id;
                   setDraggedMemoryId(id);
                 }}
               />
@@ -1013,6 +1011,7 @@ export function Sidebar() {
         </button>
       )}
       <ConfirmDialog
+        key={confirmDeleteGroup ? 'open' : 'closed'}
         open={!!confirmDeleteGroup}
         title="Delete group"
         message={confirmDeleteGroup ? `Delete group "${confirmDeleteGroup.name}"? Memories will move to Ungrouped.` : ''}
@@ -1030,6 +1029,7 @@ export function Sidebar() {
         onCancel={() => setConfirmDeleteGroup(null)}
       />
       <ConfirmDialog
+        key={confirmDeleteMemory ? 'open' : 'closed'}
         open={!!confirmDeleteMemory}
         title="Delete memory"
         message={confirmDeleteMemory ? `Delete "${confirmDeleteMemory.name}" from the atlas?` : ''}
@@ -1047,6 +1047,7 @@ export function Sidebar() {
         onCancel={() => setConfirmDeleteMemory(null)}
       />
       <ConfirmDialog
+        key={confirmBulkDelete ? 'open' : 'closed'}
         open={confirmBulkDelete}
         title="Delete selected memories"
         message={`Delete ${selectedMemoryIds.length} selected memory(ies) from the atlas?`}

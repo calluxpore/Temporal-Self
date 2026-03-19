@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { useMapRef } from '../context/mapContextState';
 import { useMemoryStore } from '../store/memoryStore';
 import { exportToJson, exportToCsv, importFromJson, importFromCsv } from '../utils/exportImport';
+import { generateReportPdf, reportFilename } from '../utils/generateReport';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Memory, Group } from '../types/memory';
+
+function screenshotFilename(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const time = `${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+  return `map-screenshot-${date}_${time}.png`;
+}
 
 /** Same look as Theme/Timeline/Heatmap; use inside a fixed wrapper so no fixed here. */
 const ROUND_BUTTON_CLASS =
@@ -10,6 +21,7 @@ const ROUND_BUTTON_CLASS =
 const FIXED_BUTTON_CLASS = 'fixed z-[1100] ' + ROUND_BUTTON_CLASS;
 
 export function ExportImportButtons() {
+  const map = useMapRef();
   const memories = useMemoryStore((s) => s.memories);
   const groups = useMemoryStore((s) => s.groups);
   const setMemories = useMemoryStore((s) => s.setMemories);
@@ -20,6 +32,10 @@ export function ExportImportButtons() {
   const [exportOpen, setExportOpen] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<{ memories: Memory[]; groups: Group[] } | null>(null);
+  const [screenshotBusy, setScreenshotBusy] = useState(false);
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -78,6 +94,60 @@ export function ExportImportButtons() {
     setGroups(pendingImport.groups);
     setPendingImport(null);
   }, [pendingImport, pushUndo, setMemories, setGroups]);
+
+  const handleSaveScreenshot = useCallback(async () => {
+    setScreenshotError(null);
+    if (!map) {
+      setScreenshotError('Map not ready');
+      return;
+    }
+    const container = map.getContainer();
+    if (!container) return;
+    setScreenshotBusy(true);
+    try {
+      const canvas = await html2canvas(container, {
+        useCORS: true,
+        allowTaint: true,
+        scale: window.devicePixelRatio ?? 1,
+        logging: false,
+      });
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            setScreenshotError('Failed to create image');
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = screenshotFilename();
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+        'image/png',
+        1
+      );
+    } catch (e) {
+      setScreenshotError(e instanceof Error ? e.message : 'Screenshot failed');
+    } finally {
+      setScreenshotBusy(false);
+    }
+  }, [map]);
+
+  const recallSessions = useMemoryStore((s) => s.recallSessions);
+
+  const handleGenerateReport = useCallback(async () => {
+    setReportError(null);
+    setReportBusy(true);
+    try {
+      const doc = await generateReportPdf({ memories, groups, recallSessions });
+      doc.save(reportFilename());
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : 'Report failed');
+    } finally {
+      setReportBusy(false);
+    }
+  }, [memories, groups, recallSessions]);
 
   return (
     <>
@@ -153,13 +223,56 @@ export function ExportImportButtons() {
         </svg>
       </button>
 
+      {/* Save screenshot: round button — captures map with current effects, saves to downloads */}
+      <button
+        type="button"
+        onClick={handleSaveScreenshot}
+        disabled={!map || screenshotBusy}
+        className={FIXED_BUTTON_CLASS}
+        style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 31.5rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+        aria-label="Save map screenshot"
+        title="Save screenshot of map (with current effects) to Downloads"
+      >
+        {screenshotBusy ? (
+          <span className="font-mono text-[10px] text-text-muted">…</span>
+        ) : (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary" aria-hidden>
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+            <circle cx="12" cy="13" r="3" />
+          </svg>
+        )}
+      </button>
+
+      {/* Generate report: round button — comprehensive PDF report, downloads */}
+      <button
+        type="button"
+        onClick={handleGenerateReport}
+        disabled={reportBusy}
+        className={FIXED_BUTTON_CLASS}
+        style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 35rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+        aria-label="Generate report"
+        title="Generate and download comprehensive PDF report"
+      >
+        {reportBusy ? (
+          <span className="font-mono text-[10px] text-text-muted">…</span>
+        ) : (
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary" aria-hidden>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+        )}
+      </button>
+
       {/* Contact: round button — opens samreddy.work in new tab */}
       <a
         href="https://samreddy.work/"
         target="_blank"
         rel="noopener noreferrer"
         className={FIXED_BUTTON_CLASS}
-        style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 31.5rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+        style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 38.5rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
         aria-label="Contact"
         title="Contact"
       >
@@ -172,14 +285,35 @@ export function ExportImportButtons() {
       {importError && (
         <p
           className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
-          style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 32rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+          style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 40rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
           role="alert"
         >
           {importError}
         </p>
       )}
 
+      {reportError && (
+        <p
+          className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
+          style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 36rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+          role="alert"
+        >
+          {reportError}
+        </p>
+      )}
+
+      {screenshotError && (
+        <p
+          className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
+          style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 32rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+          role="alert"
+        >
+          {screenshotError}
+        </p>
+      )}
+
       <ConfirmDialog
+        key={pendingImport ? 'open' : 'closed'}
         open={!!pendingImport}
         title="Replace all data?"
         message="Importing will replace all current memories and groups. You can undo this after importing. Continue?"

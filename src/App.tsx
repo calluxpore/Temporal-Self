@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useMemoryStore } from './store/memoryStore';
 import { MapProvider } from './context/MapContext';
-import { useMapRef } from './context/MapContext';
+import { useMapRef } from './context/mapContextState';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { MapView } from './components/MapView';
 import { Sidebar } from './components/Sidebar';
@@ -93,7 +93,7 @@ function AppContent() {
       setViewerOpenedFromRecall(false);
     }
     setSelectedMemory(null);
-  }, [viewerOpenedFromRecall]);
+  }, [viewerOpenedFromRecall, setSelectedMemory]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--color-map-water)]" id="main-content" role="main">
@@ -117,6 +117,7 @@ function AppContent() {
 
       {(showAddModal || showEditModal) && (
         <AddMemoryModal
+          key={showAddModal ? 'add' : (editingMemory?.id ?? 'edit')}
           pending={showAddModal ? pendingLatLng : null}
           editingMemory={editingMemory}
           onClose={showEditModal ? closeEditModal : closeAddModal}

@@ -13,6 +13,8 @@ export type SearchHighlight =
   | null;
 
 interface MemoryState {
+  mapView: { lat: number; lng: number; zoom: number } | null;
+  hasChosenStartLocation: boolean;
   memories: Memory[];
   groups: Group[];
   selectedMemoryId: string | null;
@@ -88,6 +90,8 @@ interface MemoryState {
   setSearchHighlight: (value: SearchHighlight) => void;
   setSidebarOpen: (value: boolean) => void;
   setSearchQuery: (value: string) => void;
+  setMapView: (value: { lat: number; lng: number; zoom: number }) => void;
+  setHasChosenStartLocation: (value: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setTimelineEnabled: (value: boolean) => void;
   setDefaultGroupId: (id: string | null) => void;
@@ -143,6 +147,8 @@ const pushUndoInSet = (state: MemoryState): Partial<MemoryState> => ({
 export const useMemoryStore = create<MemoryState>()(
   persist(
     (set) => ({
+      mapView: null,
+      hasChosenStartLocation: false,
       memories: [],
       groups: [],
       selectedMemoryId: null,
@@ -322,6 +328,8 @@ export const useMemoryStore = create<MemoryState>()(
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
 
       setSearchQuery: (searchQuery) => set({ searchQuery }),
+      setMapView: (mapView) => set({ mapView }),
+      setHasChosenStartLocation: (hasChosenStartLocation) => set({ hasChosenStartLocation }),
 
       pushUndo: () =>
         set((state) => pushUndoInSet(state)),
@@ -405,15 +413,19 @@ export const useMemoryStore = create<MemoryState>()(
           currentSessionForgot: 0,
           defaultGroupId: null,
           editingMemory: null,
+          mapView: null,
+          hasChosenStartLocation: false,
           undoStack: [],
           redoStack: [],
         }),
     }),
     {
       name: 'memory-atlas-storage',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
+        mapView: state.mapView,
+        hasChosenStartLocation: state.hasChosenStartLocation,
         memories: state.memories,
         groups: state.groups,
         theme: state.theme,
@@ -443,6 +455,13 @@ export const useMemoryStore = create<MemoryState>()(
         }
         if (version < 4 && p.recallSessions == null) {
           return { ...p, recallSessions: [] } as Record<string, unknown>;
+        }
+        if (version < 5) {
+          return {
+            ...p,
+            mapView: p.mapView ?? null,
+            hasChosenStartLocation: p.hasChosenStartLocation ?? false,
+          } as Record<string, unknown>;
         }
         return persisted as Record<string, unknown>;
       },

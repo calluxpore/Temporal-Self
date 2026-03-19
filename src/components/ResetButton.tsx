@@ -36,6 +36,7 @@ export function ResetButton() {
         </svg>
       </button>
       <ConfirmDialog
+        key={pendingReset ? 'open' : 'closed'}
         open={pendingReset}
         title="Reset everything?"
         message="Clear all memories, groups, and recall stats? This cannot be undone. Start completely fresh."

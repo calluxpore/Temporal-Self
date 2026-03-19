@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
-import { useSetMapRef } from '../context/MapContext';
+import { useSetMapRef } from '../context/mapContextState';
 
 export function SetMapRef() {
   const map = useMap();

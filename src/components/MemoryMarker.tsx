@@ -53,7 +53,7 @@ export function MemoryMarker({ memory, label, onMouseOver, onMouseOut, onClick }
 
   const icon = useMemo(
     () => createMarkerIcon(memory, isActive, label),
-    [memory.id, memory.title, isActive, label]
+    [memory, isActive, label]
   );
 
   const handleClick = (e: L.LeafletMouseEvent) => {
