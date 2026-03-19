@@ -1,0 +1,55 @@
+import { useMemoryStore } from '../store/memoryStore';
+import { isDueForReview, getRecallSessionOrderedIds } from '../utils/spacedRepetition';
+
+export function RecallButton() {
+  const memories = useMemoryStore((s) => s.memories);
+  const setRecallModalMemoryId = useMemoryStore((s) => s.setRecallModalMemoryId);
+  const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
+  const resetRecallSession = useMemoryStore((s) => s.resetRecallSession);
+  const dueCount = memories.filter(isDueForReview).length;
+
+  const startRecall = () => {
+    const orderedIds = getRecallSessionOrderedIds(memories);
+    if (orderedIds.length === 0) return;
+    resetRecallSession();
+    setRecallSessionQueue(orderedIds);
+    setRecallModalMemoryId(orderedIds[0]);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={startRecall}
+      className="fixed z-[900] flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
+      style={{
+        top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 3.5rem)',
+        right: 'max(1.5rem, env(safe-area-inset-right, 0px))',
+      }}
+      aria-label={dueCount > 0 ? `Recall: ${dueCount} due` : 'Practice recall (spaced repetition)'}
+      title={dueCount > 0 ? `${dueCount} memor${dueCount === 1 ? 'y' : 'ies'} ready for recall` : 'Practice recall — do you remember what happened here?'}
+    >
+      <svg
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="text-text-secondary"
+      >
+        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
+        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
+      </svg>
+      {dueCount > 0 && (
+        <span
+          className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-medium text-white"
+          aria-hidden
+        >
+          {dueCount > 99 ? '99+' : dueCount}
+        </span>
+      )}
+    </button>
+  );
+}

@@ -1,0 +1,345 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: 'Roboto Slab', 'Roboto', sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, monospace;
+  --font-body: 'Roboto', sans-serif;
+  --color-background: #0a0a0b;
+  --color-surface: #111114;
+  --color-surface-elevated: #1a1a1f;
+  --color-border: #2a2a32;
+  --color-accent: #60a5fa;
+  --color-accent-glow: rgba(96, 165, 250, 0.2);
+  --color-text-primary: #f5f4f0;
+  --color-text-secondary: #b5b2b8;
+  --color-text-muted: #8c8994;
+  --color-danger: #c45c5c;
+}
+
+:root {
+  /* Match CartoDB dark water so map and outer area look seamless */
+  --color-map-water: #1a1b1a;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-background: #f5f3ef;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ebe8e4;
+  --color-border: #d4d0c8;
+  --color-accent: #2563eb;
+  --color-accent-glow: rgba(37, 99, 235, 0.2);
+  --color-text-primary: #1a1917;
+  --color-text-secondary: #4a4845;
+  --color-text-muted: #6b6872;
+  --color-danger: #8b3a3a;
+  /* Match light map land/water grey for seamless look */
+  --color-map-water: #e0e4e5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: 'Roboto', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  body {
+    touch-action: auto;
+  }
+}
+
+/* Leaflet: match map water so container and outer area are seamless */
+.leaflet-container {
+  font-family: inherit;
+  background: var(--color-map-water) !important;
+}
+
+.leaflet-container img {
+  max-width: none;
+}
+
+.leaflet-tile-pane,
+.leaflet-map-pane {
+  background: var(--color-map-water);
+}
+
+@media (pointer: coarse) {
+  .leaflet-control-zoom a {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.animate-map-in {
+  animation: mapFadeIn 800ms ease-out forwards;
+}
+
+@keyframes mapFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Map area cursor and overlay */
+.map-click-ripple {
+  pointer-events: none;
+  position: absolute;
+  border-radius: 50%;
+  background: var(--color-accent);
+  opacity: 0;
+  animation: ripple 600ms ease-out forwards;
+}
+
+@keyframes ripple {
+  0% {
+    opacity: 0.6;
+    transform: scale(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(4);
+  }
+}
+
+/* Custom marker pulse ring (active) */
+.marker-pulse-ring {
+  position: absolute;
+  inset: -12px;
+  border: 1px solid var(--color-accent);
+  border-radius: 50%;
+  animation: pulseRing 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulseRing {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+/* Modal: full-screen slide up on mobile, centered card on desktop */
+.modal-slide-up {
+  transform: translateY(100%);
+  transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1), opacity 300ms ease;
+}
+
+.modal-slide-up.open {
+  transform: translateY(0);
+}
+
+@media (min-width: 768px) {
+  .modal-slide-up {
+    transform: translate(-50%, -50%) scale(0.97);
+    opacity: 0;
+  }
+  .modal-slide-up.open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Memory viewer entrance */
+.memory-viewer-enter {
+  opacity: 0;
+  transform: scale(0.97);
+  transition: opacity 300ms ease-out, transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.memory-viewer-enter.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Custom gold dot markers */
+.memory-marker-wrapper,
+.pending-pulse-wrapper {
+  background: transparent !important;
+  border: none !important;
+}
+
+.memory-marker-outer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 40px;
+  height: 52px;
+  gap: 0;
+}
+
+.memory-marker-label {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-text-primary);
+  text-shadow: 0 0 2px var(--color-background), 0 1px 3px var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+}
+
+.memory-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 24px;
+}
+
+.marker-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 14px 5px var(--color-accent-glow);
+  transition: transform 0.2s ease;
+  z-index: 1;
+}
+
+.memory-marker:hover .marker-dot {
+  transform: scale(1.4);
+}
+
+.memory-marker.active .marker-dot {
+  transform: scale(1.3);
+}
+
+.marker-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%) translateY(-8px);
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+
+.memory-marker:hover .marker-tooltip {
+  opacity: 1;
+}
+
+.pending-pulse-wrapper .marker-pulse-ring {
+  position: absolute;
+  inset: -8px;
+}
+
+/* Safe area insets for notched / home-indicator devices */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-area-inset-bottom {
+    bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-inset-top {
+    top: env(safe-area-inset-top);
+  }
+  .safe-area-inset-right {
+    right: env(safe-area-inset-right);
+  }
+}
+
+/* Min touch target 44px (Apple HIG) for interactive elements on touch */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Marker cluster: circle with count (overrides default cluster look) */
+.memory-cluster-icon {
+  background: none !important;
+  border: none !important;
+}
+
+.memory-cluster-icon .memory-cluster-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-background);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.marker-enter .marker-dot {
+  animation: markerScaleIn 500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes markerScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Reorder drop line: visible slot between memories when dragging */
+.reorder-drop-line {
+  min-height: 10px;
+  border-top: 3px solid transparent;
+  transition: border-color 0.1s ease, background-color 0.1s ease;
+}
+.reorder-drop-line.active {
+  border-top-color: var(--color-accent);
+  background-color: var(--color-accent-glow);
+}
+
