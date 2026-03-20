@@ -263,9 +263,82 @@ body,
   opacity: 1;
 }
 
+.memory-marker.route-start .marker-dot {
+  background: #22c55e;
+  box-shadow: 0 0 14px 5px rgba(34, 197, 94, 0.35);
+}
+
+.memory-marker.route-end .marker-dot {
+  background: #ef4444;
+  box-shadow: 0 0 14px 5px rgba(239, 68, 68, 0.35);
+}
+
+.memory-hover-card-grab {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: rgba(0, 0, 0, 0.18);
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.memory-hover-card-grab::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  background:
+    radial-gradient(circle, var(--color-accent) 2px, transparent 2.2px) 0 0/7px 7px;
+  opacity: 0.9;
+}
+
+.memory-hover-card-grab:active {
+  cursor: grabbing;
+}
+
 .pending-pulse-wrapper .marker-pulse-ring {
   position: absolute;
   inset: -8px;
+}
+
+.drag-focus-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.drag-focus-cross {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 2px solid var(--color-accent);
+  background: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25), 0 0 14px 3px var(--color-accent-glow);
+  position: relative;
+}
+
+.drag-focus-cross::before,
+.drag-focus-cross::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 2px;
+  background: var(--color-accent);
+  transform-origin: center;
+}
+
+.drag-focus-cross::before {
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+
+.drag-focus-cross::after {
+  width: 2px;
+  height: 12px;
+  transform: translate(-50%, -50%) rotate(0deg);
 }
 
 /* Safe area insets for notched / home-indicator devices */

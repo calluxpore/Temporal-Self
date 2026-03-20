@@ -13,6 +13,8 @@ export type SearchHighlight =
   | { type: 'area'; bbox: SearchHighlightBbox }
   | null;
 
+export type TimelineLineStyle = 'spline' | 'orthogonal';
+
 interface MemoryState {
   mapView: { lat: number; lng: number; zoom: number } | null;
   hasChosenStartLocation: boolean;
@@ -29,6 +31,7 @@ interface MemoryState {
   searchQuery: string;
   theme: 'dark' | 'light';
   timelineEnabled: boolean;
+  timelineLineStyle: TimelineLineStyle;
   defaultGroupId: string | null;
   /** Resizable sidebar width in px (min 240, max 560). */
   sidebarWidth: number;
@@ -100,6 +103,8 @@ interface MemoryState {
   setSidebarView: (view: MemoryState['sidebarView']) => void;
   addMemory: (memory: Memory) => void;
   updateMemory: (id: string, updates: Partial<Memory>) => void;
+  /** Update a memory without pushing an undo snapshot (use for live dragging). */
+  updateMemoryWithoutUndo: (id: string, updates: Partial<Memory>) => void;
   removeMemory: (id: string) => void;
   setSelectedMemory: (memory: Memory | null) => void;
   setCardTargetMemoryId: (id: string | null) => void;
@@ -113,6 +118,7 @@ interface MemoryState {
   setHasChosenStartLocation: (value: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setTimelineEnabled: (value: boolean) => void;
+  setTimelineLineStyle: (value: TimelineLineStyle) => void;
   setDefaultGroupId: (id: string | null) => void;
   setSidebarWidth: (width: number) => void;
   addGroup: (group: Group) => void;
@@ -180,6 +186,7 @@ export const useMemoryStore = create<MemoryState>()(
       searchQuery: '',
       theme: 'dark',
       timelineEnabled: false,
+      timelineLineStyle: 'spline',
       defaultGroupId: null,
       sidebarWidth: 320,
       filterStarred: false,
@@ -436,6 +443,10 @@ export const useMemoryStore = create<MemoryState>()(
             m.id === id ? { ...m, ...updates } : m
           ),
         })),
+      updateMemoryWithoutUndo: (id, updates) =>
+        set((state) => ({
+          memories: state.memories.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+        })),
 
       removeMemory: (id) =>
         set((state) => ({
@@ -452,6 +463,8 @@ export const useMemoryStore = create<MemoryState>()(
       setTheme: (theme) => set({ theme }),
 
       setTimelineEnabled: (timelineEnabled) => set({ timelineEnabled }),
+
+      setTimelineLineStyle: (timelineLineStyle) => set({ timelineLineStyle }),
 
       setDefaultGroupId: (defaultGroupId) => set({ defaultGroupId }),
 
@@ -611,6 +624,7 @@ export const useMemoryStore = create<MemoryState>()(
         memories: state.memories,
         groups: state.groups,
         theme: state.theme,
+        timelineLineStyle: state.timelineLineStyle,
         defaultGroupId: state.defaultGroupId,
         sidebarWidth: state.sidebarWidth,
         skipDeleteConfirmation: state.skipDeleteConfirmation,

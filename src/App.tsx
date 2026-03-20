@@ -12,6 +12,7 @@ import { RecallButton } from './components/RecallButton';
 import { ResetButton } from './components/ResetButton';
 import { RecallModal } from './components/RecallModal';
 import { TimelineToggle } from './components/TimelineToggle';
+import { TimelineLineStyleToggle } from './components/TimelineLineStyleToggle';
 import { HeatmapToggle } from './components/HeatmapToggle';
 import { MarkersToggle } from './components/MarkersToggle';
 import { FavoritesToggle } from './components/FavoritesToggle';
@@ -168,6 +169,7 @@ function AppContent() {
       <ThemeToggle />
       <RecallButton />
       <ResetButton />
+      <TimelineLineStyleToggle />
       <TimelineToggle />
       <HeatmapToggle />
       <MarkersToggle />

@@ -13,9 +13,15 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#039;');
 }
 
-function createMarkerIcon(memory: Memory, isActive: boolean, label: string | undefined) {
+function createMarkerIcon(
+  memory: Memory,
+  isActive: boolean,
+  label: string | undefined,
+  routeRole?: 'start' | 'end'
+) {
+  const roleClass = routeRole === 'start' ? 'route-start' : routeRole === 'end' ? 'route-end' : '';
   const markerInner = `
-    <div class="memory-marker ${isActive ? 'active' : ''}" data-memory-id="${memory.id}">
+    <div class="memory-marker ${isActive ? 'active' : ''} ${roleClass}" data-memory-id="${memory.id}">
       ${isActive ? '<div class="marker-pulse-ring"></div>' : ''}
       <div class="marker-dot" title="${escapeHtml(memory.title)}"></div>
       <div class="marker-tooltip">${escapeHtml(memory.title)}</div>
@@ -40,20 +46,22 @@ interface MemoryMarkerProps {
   memory: Memory;
   /** Label shown above the node (e.g. A, B, A1). */
   label?: string;
+  /** Color the marker dot as the start/end of the visible journey. */
+  routeRole?: 'start' | 'end';
   onMouseOver?: (memory: Memory, point: L.Point) => void;
   onMouseOut?: () => void;
   /** Called when the marker is clicked (e.g. to open edit). */
   onClick?: (memory: Memory) => void;
 }
 
-export function MemoryMarker({ memory, label, onMouseOver, onMouseOut, onClick }: MemoryMarkerProps) {
+export function MemoryMarker({ memory, label, routeRole, onMouseOver, onMouseOut, onClick }: MemoryMarkerProps) {
   const map = useMap();
   const markerRef = useRef<L.Marker>(null);
   const isActive = useMemoryStore((s) => s.selectedMemoryId === memory.id);
 
   const icon = useMemo(
-    () => createMarkerIcon(memory, isActive, label),
-    [memory, isActive, label]
+    () => createMarkerIcon(memory, isActive, label, routeRole),
+    [memory, isActive, label, routeRole]
   );
 
   const handleClick = (e: L.LeafletMouseEvent) => {

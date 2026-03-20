@@ -450,7 +450,7 @@ export function ExportImportButtons() {
       />
 
       {/* Export: round button; options in center modal */}
-      <div className="pointer-events-auto fixed z-[1100] group" style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 24.5rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}>
+      <div className="pointer-events-auto fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 448px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
         <button
           type="button"
           onClick={(e) => {
@@ -498,7 +498,7 @@ export function ExportImportButtons() {
       )}
 
       {/* Import: round button */}
-      <div className="fixed z-[1100] group" style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 28rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}>
+      <div className="fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 504px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
         <button
           type="button"
           onClick={handleImportClick}
@@ -515,7 +515,7 @@ export function ExportImportButtons() {
       </div>
 
       {/* Save screenshot: round button — captures map with current effects, saves to downloads */}
-      <div className="fixed z-[1100] group" style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 31.5rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}>
+      <div className="fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 560px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
         <button
           type="button"
           onClick={handleSaveScreenshot}
@@ -536,7 +536,7 @@ export function ExportImportButtons() {
       </div>
 
       {/* Generate report: round button — comprehensive PDF report, downloads */}
-      <div className="fixed z-[1100] group" style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 35rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}>
+      <div className="fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 616px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
         <button
           type="button"
           onClick={handleGenerateReport}
@@ -560,7 +560,7 @@ export function ExportImportButtons() {
       </div>
 
       {/* Contact: round button — opens samreddy.work in new tab */}
-      <div className="fixed z-[1100] group" style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 38.5rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}>
+      <div className="fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 672px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
         <a
           href="https://samreddy.work/"
           target="_blank"
@@ -579,7 +579,7 @@ export function ExportImportButtons() {
       {importError && (
         <p
           className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
-          style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 40rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+          style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 696px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}
           role="alert"
         >
           {importError}
@@ -589,7 +589,7 @@ export function ExportImportButtons() {
       {reportError && (
         <p
           className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
-          style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 36rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+          style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 632px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}
           role="alert"
         >
           {reportError}
@@ -599,7 +599,7 @@ export function ExportImportButtons() {
       {screenshotError && (
         <p
           className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
-          style={{ top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 32rem)', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+          style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 568px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}
           role="alert"
         >
           {screenshotError}

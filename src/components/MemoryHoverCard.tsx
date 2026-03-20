@@ -11,6 +11,9 @@ interface MemoryHoverCardProps {
   onMouseLeave: () => void;
   /** Called when the card is clicked (e.g. to open edit). */
   onClick?: () => void;
+  /** If provided, a grab handle is shown and dragging will move the memory on the map. */
+  onStartDrag?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  isDragging?: boolean;
 }
 
 export function MemoryHoverCard({
@@ -19,8 +22,10 @@ export function MemoryHoverCard({
   onMouseEnter,
   onMouseLeave,
   onClick,
+  onStartDrag,
+  isDragging,
 }: MemoryHoverCardProps) {
-  const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng);
+  const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng, { enabled: !isDragging });
   const firstImage = getMemoryImages(memory)[0] ?? null;
   const [imageFocus, setImageFocus] = useState<'top' | 'center'>('center');
   const notesPreview = memory.notes?.trim()
@@ -32,16 +37,32 @@ export function MemoryHoverCard({
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
-      className={`memory-hover-card pointer-events-auto absolute z-[850] w-56 rounded border border-border bg-surface shadow-lg ${onClick ? 'cursor-pointer transition-colors hover:border-accent hover:bg-surface-elevated' : ''}`}
+      className={`memory-hover-card pointer-events-auto absolute z-[850] w-56 rounded border border-border bg-surface shadow-lg ${
+        onClick ? 'cursor-pointer transition-colors hover:border-accent hover:bg-surface-elevated' : ''
+      }`}
       style={{
         left: point.x,
         top: point.y,
         transform: 'translate(-50%, calc(-100% - 10px))',
+        userSelect: isDragging ? 'none' : undefined,
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={onClick}
     >
+      {onStartDrag && (
+        <div
+          className="memory-hover-card-grab"
+          role="button"
+          aria-label="Grab and move memory marker"
+          onPointerDown={(e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            onStartDrag?.(e);
+          }}
+        />
+      )}
       {firstImage && (
         <div className="h-24 w-full overflow-hidden rounded-t">
           <img

@@ -16,6 +16,7 @@ import { getMemoryLabel } from '../utils/memoryLabel';
 import { memoriesInSidebarOrder, compareOrderThenCreatedAt } from '../utils/memoryOrder';
 import { filterMemoriesByDate } from '../utils/dateFilter';
 import { smoothCurveThroughPoints } from '../utils/timelineCurve';
+import { buildOrthogonalRoute } from '../utils/timelineOrthogonal';
 import { useIsMd } from '../hooks/useMediaQuery';
 
 function ZoomControlPlacement() {
@@ -33,6 +34,13 @@ function ZoomControlPlacement() {
 const pendingPulseIcon = L.divIcon({
   className: 'pending-pulse-wrapper',
   html: '<div class="marker-pulse-ring"></div>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+const dragFocusIcon = L.divIcon({
+  className: 'drag-focus-icon',
+  html: '<div class="drag-focus-cross" />',
   iconSize: [24, 24],
   iconAnchor: [12, 12],
 });
@@ -134,6 +142,7 @@ function MapContent({
   pendingLatLng,
   searchHighlight,
   timelineEnabled,
+  timelineLineStyle,
   hiddenGroupIds,
   theme,
   mapBlurred,
@@ -153,6 +162,7 @@ function MapContent({
   pendingLatLng: { lat: number; lng: number } | null;
   searchHighlight: SearchHighlight;
   timelineEnabled: boolean;
+  timelineLineStyle: 'spline' | 'orthogonal';
   hiddenGroupIds: Set<string>;
   theme: 'dark' | 'light';
   mapBlurred: boolean;
@@ -167,6 +177,7 @@ function MapContent({
   onMarkerHoverOut: () => void;
   onMarkerClick?: (memory: Memory) => void;
 }) {
+  const map = useMap();
   const memoryIdToLabel = useMemo(() => {
     const sorted = memoriesInSidebarOrder(memories, groups);
     return new Map(sorted.map((m, i) => [m.id, getMemoryLabel(i)]));
@@ -176,9 +187,21 @@ function MapContent({
     [memories, groups, visibleMemoryIds]
   );
 
-  const { timelinePaths, globalRoutePath } = (() => {
-    if (!timelineEnabled) return { timelinePaths: [] as [number, number][][], globalRoutePath: null as [number, number][] | null };
+  const { timelinePaths, globalRoutePath, routeStartIds, routeEndIds } = (() => {
+    if (!timelineEnabled)
+      return {
+        timelinePaths: [] as [number, number][][],
+        globalRoutePath: null as [number, number][] | null,
+        routeStartIds: new Set<string>(),
+        routeEndIds: new Set<string>(),
+      };
+
+    const makePositions = (raw: [number, number][]) =>
+      timelineLineStyle === 'spline' ? smoothCurveThroughPoints(raw, 16) : buildOrthogonalRoute(map, raw, { radiusPx: 12, arcSegments: 6 });
+
     const paths: [number, number][][] = [];
+    const routeStartIds = new Set<string>();
+    const routeEndIds = new Set<string>();
     for (const g of groups) {
       if (hiddenGroupIds.has(g.id)) continue;
       const groupMemories = memories
@@ -186,21 +209,29 @@ function MapContent({
         .sort(compareOrderThenCreatedAt);
       if (groupMemories.length < 2) continue;
       const raw = groupMemories.map((m) => [m.lat, m.lng] as [number, number]);
-      paths.push(smoothCurveThroughPoints(raw, 16));
+      paths.push(makePositions(raw));
+      routeStartIds.add(groupMemories[0].id);
+      routeEndIds.add(groupMemories[groupMemories.length - 1].id);
     }
     const ungrouped = memories
       .filter((m) => (m.groupId ?? null) === null && !(m.hidden ?? false))
       .sort(compareOrderThenCreatedAt);
     if (ungrouped.length >= 2) {
       const raw = ungrouped.map((m) => [m.lat, m.lng] as [number, number]);
-      paths.push(smoothCurveThroughPoints(raw, 16));
+      paths.push(makePositions(raw));
+      routeStartIds.add(ungrouped[0].id);
+      routeEndIds.add(ungrouped[ungrouped.length - 1].id);
     }
     const visibleSorted = memories
       .filter((m) => visibleMemoryIds.has(m.id))
       .sort((a, b) => a.date.localeCompare(b.date) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     const globalRaw = visibleSorted.length >= 2 ? visibleSorted.map((m) => [m.lat, m.lng] as [number, number]) : null;
-    const globalRoutePath = globalRaw && globalRaw.length >= 2 ? smoothCurveThroughPoints(globalRaw, 16) : null;
-    return { timelinePaths: paths, globalRoutePath };
+    const globalRoutePath = globalRaw && globalRaw.length >= 2 ? makePositions(globalRaw) : null;
+    if (visibleSorted.length >= 2) {
+      routeStartIds.add(visibleSorted[0].id);
+      routeEndIds.add(visibleSorted[visibleSorted.length - 1].id);
+    }
+    return { timelinePaths: paths, globalRoutePath, routeStartIds, routeEndIds };
   })();
 
   return (
@@ -244,7 +275,7 @@ function MapContent({
       )}
       {timelinePaths.map((positions, i) => (
         <Polyline
-          key={`timeline-${i}-${positions.length}`}
+          key={`timeline-${i}`}
           positions={positions}
           pathOptions={{
             color: TIMELINE_COLOR[theme],
@@ -297,6 +328,7 @@ function MapContent({
               key={m.id}
               memory={m}
               label={m.customLabel?.trim() || memoryIdToLabel.get(m.id)}
+              routeRole={routeEndIds.has(m.id) ? 'end' : routeStartIds.has(m.id) ? 'start' : undefined}
               onMouseOver={onMarkerHover}
               onMouseOut={onMarkerHoverOut}
               onClick={onMarkerClick}
@@ -336,6 +368,16 @@ export function MapView({
   const cardPinnedBySidebarRef = useRef(false);
   const [hoveredMemory, setHoveredMemory] = useState<Memory | null>(null);
   const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number } | null>(null);
+  const [dragFocusLatLng, setDragFocusLatLng] = useState<{ lat: number; lng: number } | null>(null);
+  const [draggingMemoryId, setDraggingMemoryId] = useState<string | null>(null);
+  const isDraggingMemory = draggingMemoryId != null;
+  const isDraggingMemoryRef = useRef(false);
+  const draggingMemoryIdRef = useRef<string | null>(null);
+  const grabDeltaRef = useRef<{ dx: number; dy: number } | null>(null);
+  const dragContainerRectRef = useRef<DOMRect | null>(null);
+  const dragRafRef = useRef<number | null>(null);
+  const pendingDragRef = useRef<{ lat: number; lng: number; x: number; y: number } | null>(null);
+  const suppressCardClickRef = useRef(false);
   const prefersHover = usePrefersHover();
   const isMd = useIsMd();
   const sidebarOpen = useMemoryStore((s) => s.sidebarOpen);
@@ -356,13 +398,21 @@ export function MapView({
     list = filterMemoriesByDate(list, dateFilterFrom, dateFilterTo);
     return list;
   }, [memories, filterStarred, dateFilterFrom, dateFilterTo]);
+
+  const hoveredMemoryLive = useMemo(() => {
+    if (!hoveredMemory) return null;
+    return visibleMemories.find((m) => m.id === hoveredMemory.id) ?? hoveredMemory;
+  }, [hoveredMemory, visibleMemories]);
   const groups = useMemoryStore((s) => s.groups);
   const theme = useMemoryStore((s) => s.theme);
   const sidebarWidth = useMemoryStore((s) => s.sidebarWidth);
   const pendingLatLng = useMemoryStore((s) => s.pendingLatLng);
   const searchHighlight = useMemoryStore((s) => s.searchHighlight);
   const timelineEnabled = useMemoryStore((s) => s.timelineEnabled);
+  const timelineLineStyle = useMemoryStore((s) => s.timelineLineStyle);
   const isAddingMemory = useMemoryStore((s) => s.isAddingMemory);
+  const pushUndo = useMemoryStore((s) => s.pushUndo);
+  const updateMemoryWithoutUndo = useMemoryStore((s) => s.updateMemoryWithoutUndo);
 
   const hintCenterLeft =
     isMd && sidebarOpen
@@ -406,6 +456,7 @@ export function MapView({
 
   const onMapClick = useCallback(
     (latlng: L.LatLng) => {
+      if (isDraggingMemoryRef.current) return;
       closeHoverCard();
       setSearchHighlight(null);
       setPendingLatLng({ lat: latlng.lat, lng: latlng.lng });
@@ -428,6 +479,7 @@ export function MapView({
   );
 
   const onMarkerHoverOut = useCallback(() => {
+    if (isDraggingMemoryRef.current) return;
     if (cardPinnedBySidebarRef.current) return;
     hoverHideTimeoutRef.current = setTimeout(() => {
       setHoveredMemory(null);
@@ -437,6 +489,7 @@ export function MapView({
   }, []);
 
   const onMapMouseMove = useCallback((e: L.LeafletMouseEvent) => {
+    if (isDraggingMemoryRef.current) return;
     if (cardPinnedBySidebarRef.current) return;
     const target = e.originalEvent?.target as HTMLElement | undefined;
     if (!target?.closest?.('.memory-marker-wrapper')) {
@@ -449,8 +502,14 @@ export function MapView({
     }
   }, []);
 
-  const onMapDragStart = useCallback(() => closeHoverCard(), [closeHoverCard]);
-  const onMapZoomStart = useCallback(() => closeHoverCard(), [closeHoverCard]);
+  const onMapDragStart = useCallback(() => {
+    if (isDraggingMemoryRef.current) return;
+    closeHoverCard();
+  }, [closeHoverCard]);
+  const onMapZoomStart = useCallback(() => {
+    if (isDraggingMemoryRef.current) return;
+    closeHoverCard();
+  }, [closeHoverCard]);
 
   const onMarkerClick = useCallback(
     (memory: Memory) => {
@@ -516,6 +575,124 @@ export function MapView({
     };
   }, [cardTargetMemoryId, visibleMemories, setCardTargetMemoryId]);
 
+  const startDraggingMemory = useCallback(
+    (
+      memory: Memory,
+      startPoint: { x: number; y: number },
+      e: React.PointerEvent<HTMLDivElement>
+    ) => {
+      const map = mapRef.current;
+      if (!map) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (draggingMemoryIdRef.current) return;
+
+      suppressCardClickRef.current = false;
+
+      // Snapshot the current state once so dragging can be undone as a single action.
+      pushUndo();
+
+      // Drag state (use refs so map event callbacks remain current).
+      draggingMemoryIdRef.current = memory.id;
+      isDraggingMemoryRef.current = true;
+      setDraggingMemoryId(memory.id);
+
+      cardPinnedBySidebarRef.current = true;
+      const initialLatLng = map.containerPointToLatLng(L.point(startPoint.x, startPoint.y));
+      setDragFocusLatLng({ lat: initialLatLng.lat, lng: initialLatLng.lng });
+      if (hoverHideTimeoutRef.current) {
+        clearTimeout(hoverHideTimeoutRef.current);
+        hoverHideTimeoutRef.current = null;
+      }
+
+      const containerEl = map.getContainer();
+      const rect = containerEl.getBoundingClientRect();
+      dragContainerRectRef.current = rect;
+
+      const pointerX = e.clientX - rect.left;
+      const pointerY = e.clientY - rect.top;
+      grabDeltaRef.current = { dx: pointerX - startPoint.x, dy: pointerY - startPoint.y };
+
+      // Disable map panning/zoom while dragging the card.
+      map.dragging.disable();
+      if (map.scrollWheelZoom) map.scrollWheelZoom.disable();
+      if (map.doubleClickZoom) map.doubleClickZoom.disable();
+      if (map.boxZoom) map.boxZoom.disable();
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const onPointerMove = (ev: PointerEvent) => {
+        if (draggingMemoryIdRef.current !== memory.id) return;
+        const r = dragContainerRectRef.current;
+        const delta = grabDeltaRef.current;
+        if (!r || !delta) return;
+
+        const px = ev.clientX - r.left;
+        const py = ev.clientY - r.top;
+        const markerX = px - delta.dx;
+        const markerY = py - delta.dy;
+
+        const latlng = map.containerPointToLatLng(L.point(markerX, markerY));
+        pendingDragRef.current = { lat: latlng.lat, lng: latlng.lng, x: markerX, y: markerY };
+
+        if (dragRafRef.current != null) return;
+        dragRafRef.current = requestAnimationFrame(() => {
+          const pending = pendingDragRef.current;
+          dragRafRef.current = null;
+          pendingDragRef.current = null;
+
+          if (!pending) return;
+          if (draggingMemoryIdRef.current !== memory.id) return;
+
+          updateMemoryWithoutUndo(memory.id, { lat: pending.lat, lng: pending.lng });
+          setHoverPoint({ x: pending.x, y: pending.y });
+          setDragFocusLatLng({ lat: pending.lat, lng: pending.lng });
+        });
+      };
+
+      const stopDrag = () => {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', stopDrag);
+        window.removeEventListener('pointercancel', stopDrag);
+
+        if (dragRafRef.current != null) {
+          cancelAnimationFrame(dragRafRef.current);
+          dragRafRef.current = null;
+        }
+        pendingDragRef.current = null;
+        grabDeltaRef.current = null;
+        dragContainerRectRef.current = null;
+        setDragFocusLatLng(null);
+
+        const mapNow = mapRef.current;
+        if (mapNow) {
+          isDraggingMemoryRef.current = false;
+          mapNow.dragging.enable();
+          if (mapNow.scrollWheelZoom) mapNow.scrollWheelZoom.enable();
+          if (mapNow.doubleClickZoom) mapNow.doubleClickZoom.enable();
+          if (mapNow.boxZoom) mapNow.boxZoom.enable();
+        } else {
+          isDraggingMemoryRef.current = false;
+        }
+
+        draggingMemoryIdRef.current = null;
+        setDraggingMemoryId(null);
+
+        cardPinnedBySidebarRef.current = false;
+        // Suppress the card "click to edit" that can fire after a drag.
+        suppressCardClickRef.current = true;
+        window.setTimeout(() => {
+          suppressCardClickRef.current = false;
+        }, 250);
+      };
+
+      window.addEventListener('pointermove', onPointerMove, { passive: true });
+      window.addEventListener('pointerup', stopDrag);
+      window.addEventListener('pointercancel', stopDrag);
+    },
+    [pushUndo, updateMemoryWithoutUndo, setDraggingMemoryId]
+  );
+
   return (
     <div
       className={`absolute inset-0 transition-[filter] duration-300 ${
@@ -529,7 +706,7 @@ export function MapView({
         center={mapView ? [mapView.lat, mapView.lng] : DEFAULT_CENTER}
         zoom={mapView?.zoom ?? DEFAULT_ZOOM}
         className="h-full w-full animate-map-in opacity-0"
-        style={{ cursor: 'crosshair' }}
+        style={{ cursor: isDraggingMemory ? 'grabbing' : 'crosshair' }}
         zoomControl={false}
       >
         <SetMapRef />
@@ -542,6 +719,7 @@ export function MapView({
           pendingLatLng={pendingLatLng}
           searchHighlight={searchHighlight}
           timelineEnabled={timelineEnabled}
+          timelineLineStyle={timelineLineStyle}
           hiddenGroupIds={hiddenGroupIds}
           theme={theme}
           mapBlurred={mapBlurred}
@@ -556,15 +734,30 @@ export function MapView({
           onMarkerHoverOut={onMarkerHoverOut}
           onMarkerClick={onMarkerClick}
         />
+        {dragFocusLatLng && (
+          <Marker
+            position={[dragFocusLatLng.lat, dragFocusLatLng.lng]}
+            icon={dragFocusIcon}
+            interactive={false}
+            zIndexOffset={2500}
+          />
+        )}
       </MapContainer>
-      {hoveredMemory && hoverPoint && (
+      {hoveredMemoryLive && hoverPoint && (
         <MemoryHoverCard
-          memory={hoveredMemory}
+          memory={hoveredMemoryLive}
           point={hoverPoint}
+          isDragging={isDraggingMemory}
+          onStartDrag={
+            isDraggingMemory
+              ? undefined
+              : (e) => startDraggingMemory(hoveredMemoryLive, hoverPoint, e)
+          }
           onMouseEnter={onCardMouseEnter}
           onMouseLeave={onCardMouseLeave}
           onClick={() => {
-            setEditingMemory(hoveredMemory);
+            if (suppressCardClickRef.current) return;
+            setEditingMemory(hoveredMemoryLive);
             closeHoverCard();
           }}
         />

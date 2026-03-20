@@ -11,12 +11,25 @@ function cacheKey(lat: number, lng: number): string {
   return `${lat.toFixed(4)},${lng.toFixed(4)}`;
 }
 
-export function useReverseGeocode(lat: number, lng: number): { location: string | null; loading: boolean } {
+export function useReverseGeocode(
+  lat: number,
+  lng: number,
+  opts?: { enabled?: boolean }
+): { location: string | null; loading: boolean } {
+  const enabled = opts?.enabled ?? true;
   const key = cacheKey(lat, lng);
   const [location, setLocation] = useState<string | null>(() => cache.get(key) ?? null);
   const [loading, setLoading] = useState(() => !cache.has(key));
 
   useEffect(() => {
+    if (!enabled) {
+      // Defer state updates to avoid synchronous setState warnings.
+      queueMicrotask(() => {
+        setLocation(null);
+        setLoading(false);
+      });
+      return;
+    }
     const cachedNow = cache.get(key);
     if (cachedNow !== undefined) {
       queueMicrotask(() => {
@@ -58,7 +71,7 @@ export function useReverseGeocode(lat: number, lng: number): { location: string 
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, key]);
+  }, [lat, lng, key, enabled]);
 
   return { location: loading ? null : location, loading };
 }

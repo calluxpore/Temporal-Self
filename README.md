@@ -17,6 +17,7 @@ It runs as:
 - **Date visibility cues**: Calendar dates with memories show dot/count indicators.
 - **Organization**: groups, collapse/hide groups, drag reorder, default group, starred favorites, and bulk actions.
 - **Map layers and filters**: search, date filter, favorites filter, timeline path, heatmap, marker visibility toggle.
+- **Drag memories on the map**: hover a memory to open its photo card, grab the top-right corner to move it; connected timeline polylines update live (Spline or Straight/orthogonal rounded corners), with a focus crosshair shown at the current drag target. Undo is captured once per drag.
 - **Recall practice (SM-2)**: due-based spaced repetition with session stats (`I remember` / `Show me` / skip flow).
 - **Stats dashboards**:
   - General stats (totals, places, starred, photos, by year/month, date-wise memories)

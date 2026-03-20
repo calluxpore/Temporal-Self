@@ -8,8 +8,8 @@ export function MarkersToggle() {
     <div
       className="fixed z-[900] group"
       style={{
-        top: 'calc(max(1.5rem, env(safe-area-inset-top, 0px)) + 17.5rem)',
-        right: 'max(1.5rem, env(safe-area-inset-right, 0px))',
+        top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 336px)',
+        right: 'max(24px, env(safe-area-inset-right, 0px))',
       }}
     >
       <button

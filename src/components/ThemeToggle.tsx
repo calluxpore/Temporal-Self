@@ -11,7 +11,7 @@ export function ThemeToggle() {
   return (
     <div
       className="fixed z-[900] group"
-      style={{ top: 'max(1.5rem, env(safe-area-inset-top, 0px))', right: 'max(1.5rem, env(safe-area-inset-right, 0px))' }}
+      style={{ top: 'max(24px, env(safe-area-inset-top, 0px))', right: 'max(24px, env(safe-area-inset-right, 0px))' }}
     >
       <button
         type="button"
