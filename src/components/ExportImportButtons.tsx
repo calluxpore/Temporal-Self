@@ -53,7 +53,12 @@ const ROUND_BUTTON_CLASS =
 const TOOLTIP_CLASS =
   'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100';
 
-export function ExportImportButtons() {
+type TopControlVariant = 'fixed' | 'bar';
+
+const TOOLTIP_CLASS_BAR =
+  'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100';
+
+export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const map = useMapRef();
   const memories = useMemoryStore((s) => s.memories);
   const groups = useMemoryStore((s) => s.groups);
@@ -114,6 +119,10 @@ export function ExportImportButtons() {
   const studyEvents = useMemoryStore((s) => s.studyEvents);
   const setStudyParticipantId = useMemoryStore((s) => s.setStudyParticipantId);
   const setStudyCheckpointTag = useMemoryStore((s) => s.setStudyCheckpointTag);
+
+  const tooltipClass = variant === 'bar' ? TOOLTIP_CLASS_BAR : TOOLTIP_CLASS;
+  const errorTop =
+    variant === 'bar' ? `calc(max(24px, env(safe-area-inset-top, 0px)) + 78px)` : undefined;
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -450,7 +459,20 @@ export function ExportImportButtons() {
       />
 
       {/* Export: round button; options in center modal */}
-      <div className="pointer-events-auto fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 448px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
+      <div
+        className={
+          variant === 'bar' ? 'relative z-[1100] group flex-shrink-0' : 'pointer-events-auto fixed z-[1100] group'
+        }
+        style={
+          variant === 'bar'
+            ? undefined
+            : {
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 448px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+              }
+        }
+      >
         <button
           type="button"
           onClick={(e) => {
@@ -470,7 +492,7 @@ export function ExportImportButtons() {
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
-        <span className={TOOLTIP_CLASS}>Export</span>
+        <span className={tooltipClass}>Export</span>
       </div>
 
       {exportOpen && (
@@ -498,7 +520,18 @@ export function ExportImportButtons() {
       )}
 
       {/* Import: round button */}
-      <div className="fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 504px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
+      <div
+        className={variant === 'bar' ? 'relative z-[1100] group flex-shrink-0' : 'fixed z-[1100] group'}
+        style={
+          variant === 'bar'
+            ? undefined
+            : {
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 504px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+              }
+        }
+      >
         <button
           type="button"
           onClick={handleImportClick}
@@ -511,11 +544,22 @@ export function ExportImportButtons() {
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
         </button>
-        <span className={TOOLTIP_CLASS}>Import</span>
+        <span className={tooltipClass}>Import</span>
       </div>
 
       {/* Save screenshot: round button — captures map with current effects, saves to downloads */}
-      <div className="fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 560px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
+      <div
+        className={variant === 'bar' ? 'relative z-[1100] group flex-shrink-0' : 'fixed z-[1100] group'}
+        style={
+          variant === 'bar'
+            ? undefined
+            : {
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 560px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+              }
+        }
+      >
         <button
           type="button"
           onClick={handleSaveScreenshot}
@@ -532,11 +576,22 @@ export function ExportImportButtons() {
             </svg>
           )}
         </button>
-        <span className={TOOLTIP_CLASS}>Shot</span>
+        <span className={tooltipClass}>Shot</span>
       </div>
 
       {/* Generate report: round button — comprehensive PDF report, downloads */}
-      <div className="fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 616px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
+      <div
+        className={variant === 'bar' ? 'relative z-[1100] group flex-shrink-0' : 'fixed z-[1100] group'}
+        style={
+          variant === 'bar'
+            ? undefined
+            : {
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 616px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+              }
+        }
+      >
         <button
           type="button"
           onClick={handleGenerateReport}
@@ -556,11 +611,22 @@ export function ExportImportButtons() {
             </svg>
           )}
         </button>
-        <span className={TOOLTIP_CLASS}>Report</span>
+        <span className={tooltipClass}>Report</span>
       </div>
 
       {/* Contact: round button — opens samreddy.work in new tab */}
-      <div className="fixed z-[1100] group" style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 672px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}>
+      <div
+        className={variant === 'bar' ? 'relative z-[1100] group flex-shrink-0' : 'fixed z-[1100] group'}
+        style={
+          variant === 'bar'
+            ? undefined
+            : {
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 672px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+              }
+        }
+      >
         <a
           href="https://samreddy.work/"
           target="_blank"
@@ -573,13 +639,20 @@ export function ExportImportButtons() {
             <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
           </svg>
         </a>
-        <span className={TOOLTIP_CLASS}>Contact</span>
+        <span className={tooltipClass}>Contact</span>
       </div>
 
       {importError && (
         <p
           className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
-          style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 696px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}
+          style={{
+            top:
+              variant === 'bar'
+                ? errorTop
+                : 'calc(max(24px, env(safe-area-inset-top, 0px)) + 696px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
           role="alert"
         >
           {importError}
@@ -589,7 +662,14 @@ export function ExportImportButtons() {
       {reportError && (
         <p
           className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
-          style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 632px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}
+          style={{
+            top:
+              variant === 'bar'
+                ? errorTop
+                : 'calc(max(24px, env(safe-area-inset-top, 0px)) + 632px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
           role="alert"
         >
           {reportError}
@@ -599,7 +679,14 @@ export function ExportImportButtons() {
       {screenshotError && (
         <p
           className="fixed z-[1101] font-mono max-w-[160px] text-[10px] text-danger"
-          style={{ top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 568px)', right: 'max(24px, env(safe-area-inset-right, 0px))' }}
+          style={{
+            top:
+              variant === 'bar'
+                ? errorTop
+                : 'calc(max(24px, env(safe-area-inset-top, 0px)) + 568px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
           role="alert"
         >
           {screenshotError}

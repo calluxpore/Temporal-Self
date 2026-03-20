@@ -1,6 +1,8 @@
 import { useMemoryStore } from '../store/memoryStore';
 
-export function ThemeToggle() {
+type TopControlVariant = 'fixed' | 'bar';
+
+export function ThemeToggle({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const theme = useMemoryStore((s) => s.theme);
   const setTheme = useMemoryStore((s) => s.setTheme);
 
@@ -8,10 +10,23 @@ export function ThemeToggle() {
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
+  const tooltipPositionClass =
+    variant === 'bar'
+      ? 'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+      : 'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100';
+
   return (
     <div
-      className="fixed z-[900] group"
-      style={{ top: 'max(24px, env(safe-area-inset-top, 0px))', right: 'max(24px, env(safe-area-inset-right, 0px))' }}
+      className={variant === 'bar' ? 'relative z-[900] flex-shrink-0 group' : 'fixed z-[900] group'}
+      style={
+        variant === 'bar'
+          ? undefined
+          : {
+              top: 'max(24px, env(safe-area-inset-top, 0px))',
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }
+      }
     >
       <button
         type="button"
@@ -30,7 +45,7 @@ export function ThemeToggle() {
           </svg>
         )}
       </button>
-      <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+      <span className={tooltipPositionClass}>
         Theme
       </span>
     </div>

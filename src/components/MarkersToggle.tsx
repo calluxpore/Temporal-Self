@@ -1,16 +1,23 @@
 import { useMemoryStore } from '../store/memoryStore';
 
-export function MarkersToggle() {
+type TopControlVariant = 'fixed' | 'bar';
+
+export function MarkersToggle({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const markersVisible = useMemoryStore((s) => s.markersVisible);
   const setMarkersVisible = useMemoryStore((s) => s.setMarkersVisible);
 
   return (
     <div
-      className="fixed z-[900] group"
-      style={{
-        top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 336px)',
-        right: 'max(24px, env(safe-area-inset-right, 0px))',
-      }}
+      className={variant === 'bar' ? 'relative z-[900] flex-shrink-0 group' : 'fixed z-[900] group'}
+      style={
+        variant === 'bar'
+          ? undefined
+          : {
+              top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 336px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }
+      }
     >
       <button
         type="button"
@@ -33,7 +40,13 @@ export function MarkersToggle() {
           <circle cx="12" cy="10" r="3" />
         </svg>
       </button>
-      <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+      <span
+        className={
+          variant === 'bar'
+            ? 'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+            : 'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+        }
+      >
         Markers
       </span>
     </div>

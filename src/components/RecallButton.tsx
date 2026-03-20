@@ -1,7 +1,9 @@
 import { useMemoryStore } from '../store/memoryStore';
 import { isDueForReview, getRecallSessionOrderedIds } from '../utils/spacedRepetition';
 
-export function RecallButton() {
+type TopControlVariant = 'fixed' | 'bar';
+
+export function RecallButton({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const memories = useMemoryStore((s) => s.memories);
   const setRecallModalMemoryId = useMemoryStore((s) => s.setRecallModalMemoryId);
   const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
@@ -18,13 +20,23 @@ export function RecallButton() {
     setRecallModalMemoryId(orderedIds[0]);
   };
 
+  const tooltipPositionClass =
+    variant === 'bar'
+      ? 'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+      : 'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100';
+
   return (
     <div
-      className="fixed z-[900] group"
-      style={{
-        top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 56px)',
-        right: 'max(24px, env(safe-area-inset-right, 0px))',
-      }}
+      className={variant === 'bar' ? 'relative z-[900] flex-shrink-0 group' : 'fixed z-[900] group'}
+      style={
+        variant === 'bar'
+          ? undefined
+          : {
+              top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 56px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }
+      }
     >
       <button
         type="button"
@@ -55,7 +67,7 @@ export function RecallButton() {
           </span>
         )}
       </button>
-      <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+      <span className={tooltipPositionClass}>
         Recall
       </span>
     </div>

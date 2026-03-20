@@ -1,10 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { useMemoryStore } from '../store/memoryStore';
 import { formatDate } from '../utils/formatDate';
 import { formatCoords } from '../utils/formatCoords';
 import { getMemoryImages } from '../utils/imageUtils';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { useReverseGeocode } from '../hooks/useReverseGeocode';
+import { parseNotesFrontMatter } from '../utils/notesFrontMatter';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Memory } from '../types/memory';
 
@@ -21,6 +25,8 @@ function safeLinkHref(u: string): string {
 
 function exportMemoryAsHtml(memory: Memory): void {
   const img = getMemoryImages(memory)[0];
+  const parsed = parseNotesFrontMatter(memory.notes ?? '');
+  const links = parsed.frontMatter.links ?? memory.links ?? [];
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -31,9 +37,11 @@ img{max-width:100%;height:auto;border-radius:8px;} a{color:#2563eb;}</style></he
 <body>
 ${img ? `<img src="${img}" alt=""/>` : ''}
 <h1>${escapeHtml(memory.title || 'Untitled')}</h1>
-<p class="muted">${formatDate(memory.date, true)} · ${memory.lat.toFixed(4)}, ${memory.lng.toFixed(4)}</p>
-${memory.notes ? `<div class="notes">${escapeHtml(memory.notes)}</div>` : ''}
-${memory.links?.length ? `<p class="muted">Links: ${memory.links.map((u) => `<a href="${escapeHtml(safeLinkHref(u))}">${escapeHtml(u)}</a>`).join(', ')}</p>` : ''}
+<p class="muted">${formatDate(parsed.frontMatter.date ?? memory.date, true)} · ${memory.lat.toFixed(4)}, ${memory.lng.toFixed(4)}</p>
+${parsed.body ? `<div class="notes">${escapeHtml(parsed.body)}</div>` : ''}
+${links.length ? `<p class="muted">Links: ${links.map((u) => `<a href="${escapeHtml(
+    safeLinkHref(u)
+  )}">${escapeHtml(u)}</a>`).join(', ')}</p>` : ''}
 <p class="muted" style="margin-top:2rem;">Temporal Self</p>
 </body></html>`;
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -109,6 +117,13 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
   useFocusTrap(viewerRef, true);
   const currentImage = images[imageIndex] ?? null;
+
+  const parsed = parseNotesFrontMatter(memory.notes ?? '');
+  const displayDate = parsed.frontMatter.date ?? memory.date;
+  const displayTags = parsed.frontMatter.tags ?? memory.tags ?? [];
+  const displayLinks = parsed.frontMatter.links ?? memory.links ?? [];
+  const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng);
+
   useEffect(() => {
     const t = requestAnimationFrame(() => setPhotoFocus('center'));
     return () => cancelAnimationFrame(t);
@@ -154,11 +169,16 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
             {memory.title || 'Untitled'}
           </h2>
           <p className="font-mono mt-2 text-sm text-text-secondary">
-            {formatDate(memory.date, true)}
+            {formatDate(displayDate, true)}
           </p>
-          {memory.tags && memory.tags.length > 0 && (
+          {(parsed.frontMatter.location ?? location) && (
+            <p className="font-mono mt-1 text-sm text-text-primary/90" title="Location">
+              {parsed.frontMatter.location ?? (locationLoading ? '…' : location ?? '')}
+            </p>
+          )}
+          {displayTags && displayTags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {memory.tags.map((t) => (
+              {displayTags.map((t) => (
                 <span
                   key={t}
                   className="rounded bg-surface-elevated px-2 py-0.5 font-mono text-xs text-text-secondary"
@@ -168,26 +188,53 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
               ))}
             </div>
           )}
-          {memory.notes && (
+          {parsed.body && (
             <div className="font-body mt-6 text-text-primary/90 leading-relaxed [&_p]:my-1 [&_h1]:text-xl [&_h2]:text-lg [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-accent [&_a]:underline">
               <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{
                   a: ({ href, children }) => (
                     <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent">
                       {children}
                     </a>
                   ),
+                  pre({ children, ...props }) {
+                    return (
+                      <pre
+                        className="mt-3 overflow-x-auto rounded-lg border border-border bg-surface-elevated p-3"
+                        {...props}
+                      >
+                        {children}
+                      </pre>
+                    );
+                  },
+                  code({ className, children, ...props }) {
+                    const language = /language-(\w+)/.exec(className ?? '')?.[1];
+                    const isBlock = !!language;
+                    return (
+                      <code
+                        className={
+                          isBlock
+                            ? 'font-mono text-sm text-text-primary'
+                            : 'rounded bg-surface-elevated px-1 py-0.5 font-mono text-[0.9em] text-text-secondary'
+                        }
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  },
                 }}
               >
-                {memory.notes}
+                {parsed.body}
               </ReactMarkdown>
             </div>
           )}
-          {memory.links && memory.links.length > 0 && (
+          {displayLinks && displayLinks.length > 0 && (
             <div className="mt-4">
               <div className="font-mono text-[10px] text-text-muted mb-1">Links</div>
               <ul className="space-y-1">
-                {memory.links.map((url, i) => (
+                {displayLinks.map((url, i) => (
                   <li key={i}>
                     <a
                       href={url.startsWith('http') ? url : `https://${url}`}

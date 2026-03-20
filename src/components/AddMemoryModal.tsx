@@ -9,6 +9,8 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Memory, PendingLatLng } from '../types/memory';
+import { NotionNotesEditor } from './NotionNotesEditor';
+import { parseNotesFrontMatter, serializeNotesFrontMatter } from '../utils/notesFrontMatter';
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -35,19 +37,35 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const dateFilterTo = useMemoryStore((s) => s.dateFilterTo);
   const isEdit = !!editingMemory;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const existingFrontMatter = parseNotesFrontMatter(editingMemory?.notes ?? null);
+  const notesBodyInitial = existingFrontMatter.body;
+  const notesFrontMatterInitial = existingFrontMatter.frontMatter;
   const effectiveLat = editingMemory ? editingMemory.lat : pending?.lat ?? 0;
   const effectiveLng = editingMemory ? editingMemory.lng : pending?.lng ?? 0;
   const selectedCalendarDate =
     dateFilterFrom && dateFilterTo && dateFilterFrom === dateFilterTo ? dateFilterFrom : null;
 
   const [title, setTitle] = useState(editingMemory?.title ?? '');
-  const [notes, setNotes] = useState(editingMemory?.notes ?? '');
-  const [date, setDate] = useState(
-    () =>
-      editingMemory?.date ??
-      selectedCalendarDate ??
-      new Date().toISOString().slice(0, 10)
+
+  const initialDate =
+    notesFrontMatterInitial.date ??
+    editingMemory?.date ??
+    selectedCalendarDate ??
+    new Date().toISOString().slice(0, 10);
+  const initialTags = notesFrontMatterInitial.tags ?? editingMemory?.tags ?? [];
+  const initialLinks = notesFrontMatterInitial.links ?? editingMemory?.links ?? [];
+  const initialLocationFallback =
+    typeof notesFrontMatterInitial.location === 'string' && notesFrontMatterInitial.location.trim().length
+      ? notesFrontMatterInitial.location
+      : formatCoords(effectiveLat, effectiveLng);
+
+  const initialNotesFull = serializeNotesFrontMatter(
+    { date: initialDate, location: initialLocationFallback, tags: initialTags, links: initialLinks },
+    notesBodyInitial
   );
+
+  const [notes, setNotes] = useState(initialNotesFull);
   const [imageDataUrls, setImageDataUrls] = useState<string[]>(() =>
     editingMemory ? getMemoryImages(editingMemory) : []
   );
@@ -57,10 +75,6 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     editingMemory ? (editingMemory.groupId ?? null) : (defaultGroupId ?? null)
   );
   const [customLabel, setCustomLabel] = useState(editingMemory?.customLabel ?? '');
-  const [tags, setTags] = useState<string[]>(() => editingMemory?.tags ?? []);
-  const [tagInput, setTagInput] = useState('');
-  const [links, setLinks] = useState<string[]>(() => editingMemory?.links ?? []);
-  const [linkInput, setLinkInput] = useState('');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [emojiPickerRect, setEmojiPickerRect] = useState<{ top: number; left: number } | null>(null);
   const iconButtonRef = useRef<HTMLButtonElement>(null);
@@ -71,7 +85,11 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const groups = useMemoryStore((s) => s.groups);
-  const { location, loading: locationLoading } = useReverseGeocode(effectiveLat, effectiveLng);
+  const { location } = useReverseGeocode(effectiveLat, effectiveLng);
+  const locationForYaml = location ?? notesFrontMatterInitial.location ?? formatCoords(effectiveLat, effectiveLng);
+
+  // Note: we intentionally do NOT auto-rewrite YAML while the user is typing,
+  // to avoid disrupting cursor/enter behavior. Location gets written on Save.
   useFocusTrap(modalRef, !!(pending || editingMemory));
 
   const handleFiles = useCallback(
@@ -115,34 +133,32 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     setMainImageFocus('center');
   };
 
-  const addTag = () => {
-    const t = tagInput.trim().toLowerCase();
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
-    setTagInput('');
-  };
-
-  const addLink = () => {
-    const u = linkInput.trim();
-    if (u && !links.includes(u)) setLinks((prev) => [...prev, u]);
-    setLinkInput('');
-  };
-
   const handleSave = () => {
     const chosenGroupId = groupId || null;
     const firstImage = imageDataUrls[0] ?? null;
-    const tagsToSave = tags.length ? tags : undefined;
-    const linksToSave = links.length ? links : undefined;
+    const parsed = parseNotesFrontMatter(notes);
+    const dateToSave = parsed.frontMatter.date ?? initialDate;
+    const tagsToSave = parsed.frontMatter.tags ?? [];
+    const linksToSave = parsed.frontMatter.links ?? [];
+    const locationToSave = parsed.frontMatter.location ?? locationForYaml ?? initialLocationFallback;
+
+    const notesFull = serializeNotesFrontMatter(
+      { date: dateToSave, location: locationToSave, tags: tagsToSave, links: linksToSave },
+      parsed.body
+    );
+    const tagsField = tagsToSave.length ? tagsToSave : undefined;
+    const linksField = linksToSave.length ? linksToSave : undefined;
     if (editingMemory) {
       updateMemory(editingMemory.id, {
         title: title.trim() || 'Untitled',
-        date,
-        notes: notes.trim(),
+        date: dateToSave,
+        notes: notesFull,
         imageDataUrls: imageDataUrls.length ? imageDataUrls : undefined,
         imageDataUrl: firstImage,
         groupId: chosenGroupId,
         customLabel: customLabel.trim() || undefined,
-        tags: tagsToSave,
-        links: linksToSave,
+        tags: tagsField,
+        links: linksField,
       });
       logStudyMemoryUpdated(editingMemory.id);
       setEditingMemory(null);
@@ -152,15 +168,15 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         lat: pending.lat,
         lng: pending.lng,
         title: title.trim() || 'Untitled',
-        date,
-        notes: notes.trim(),
+        date: dateToSave,
+        notes: notesFull,
         imageDataUrl: firstImage,
         imageDataUrls: imageDataUrls.length ? imageDataUrls : undefined,
         createdAt: new Date().toISOString(),
         groupId: chosenGroupId,
         customLabel: customLabel.trim() || undefined,
-        tags: tagsToSave,
-        links: linksToSave,
+        tags: tagsField,
+        links: linksField,
         nextReviewAt: toISODateString(getFirstReviewDate()),
         reviewCount: 0,
       };
@@ -246,32 +262,54 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   return (
     <>
       <div
-        className="fixed inset-0 z-[1100] bg-background/60 backdrop-blur-[2px]"
-        onClick={onClose}
+        className={
+          isEdit
+            ? 'pointer-events-none fixed inset-0 z-[1100] bg-background/10'
+            : 'fixed inset-0 z-[1100] bg-background/60 backdrop-blur-[2px]'
+        }
+        onClick={isEdit ? undefined : onClose}
         aria-hidden
       />
       <div
         ref={modalRef}
-        className={`modal-slide-up fixed inset-0 z-[1101] flex flex-col bg-surface md:inset-auto md:left-1/2 md:top-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:rounded border border-border md:shadow-xl ${open ? 'open' : ''}`}
+        className={
+          isEdit
+            ? `pointer-events-auto fixed inset-y-0 right-0 z-[1101] flex w-[min(540px,92vw)] sm:w-[min(620px,88vw)] lg:w-[min(780px,70vw)] xl:w-[min(860px,60vw)] flex-col rounded-l-xl border border-border bg-surface shadow-xl transition-transform duration-300 ease-out ${
+                open ? 'translate-x-0' : 'translate-x-full'
+              }`
+            : `modal-slide-up fixed inset-0 z-[1101] flex flex-col bg-surface md:inset-auto md:left-1/2 md:top-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:rounded border border-border md:shadow-xl ${open ? 'open' : ''}`
+        }
         onClick={(e) => e.stopPropagation()}
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
+        role="dialog"
+        aria-modal="true"
       >
         <div
           className={`flex flex-1 flex-col overflow-x-hidden p-4 py-6 overscroll-contain md:p-8 ${emojiPickerOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
-        <div className="mb-4 flex flex-col gap-2">
-          {(location || locationLoading) && (
-            <p className="font-mono text-sm leading-snug text-text-primary" title={location ?? undefined}>
-              {locationLoading ? '…' : location}
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-2">
+            <p className="font-mono text-sm text-accent">
+              {formatCoords(effectiveLat, effectiveLng)}
             </p>
+          </div>
+          {isEdit && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="touch-target flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border bg-surface/70 text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary active:opacity-80"
+              aria-label="Close"
+              title="Close"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
           )}
-          <p className="font-mono text-sm text-accent">
-            {formatCoords(effectiveLat, effectiveLng)}
-          </p>
         </div>
 
         <div
@@ -435,13 +473,6 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           />
         </div>
 
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="font-mono mt-4 w-full max-w-[200px] min-h-[44px] touch-target border-b border-border bg-transparent py-3 text-base text-text-primary outline-none md:py-2 md:text-sm"
-        />
-
         <div className="mt-4" ref={groupDropdownRef}>
           <label className="font-mono mb-1 block text-xs text-text-secondary">
             Group
@@ -513,93 +544,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           </div>
         </div>
 
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="What happened here..."
-          rows={4}
-          className="font-body mt-4 w-full resize-none border-none bg-transparent text-base text-text-primary placeholder-text-muted outline-none"
-        />
-
-        <div className="mt-4">
-          <label className="font-mono mb-1 block text-xs text-text-secondary">Tags</label>
-          <div className="flex flex-wrap items-center gap-2">
-            {tags.map((t) => (
-              <span
-                key={t}
-                className="inline-flex items-center gap-1 rounded bg-surface-elevated px-2 py-0.5 font-mono text-xs text-text-primary"
-              >
-                {t}
-                <button
-                  type="button"
-                  onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
-                  className="touch-target -mr-0.5 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:text-danger"
-                  aria-label={`Remove tag ${t}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            <div className="flex min-w-[120px] flex-1 items-center gap-1">
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                placeholder="Add tag..."
-                className="font-mono min-h-[32px] flex-1 rounded border border-border bg-transparent px-2 text-xs text-text-primary placeholder-text-muted outline-none focus:border-accent"
-              />
-              <button
-                type="button"
-                onClick={addTag}
-                className="font-mono touch-target min-h-[32px] px-2 text-xs text-accent hover:underline"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="font-mono mb-1 block text-xs text-text-secondary">Links</label>
-          <div className="flex flex-wrap items-center gap-2">
-            {links.map((url, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1 rounded bg-surface-elevated px-2 py-0.5 font-mono text-xs text-text-primary"
-              >
-                <a href={url.startsWith('http') ? url : `https://${url}`} target="_blank" rel="noopener noreferrer" className="truncate max-w-[160px] text-accent hover:underline">
-                  {url}
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setLinks((prev) => prev.filter((_, j) => j !== i))}
-                  className="touch-target -mr-0.5 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:text-danger"
-                  aria-label="Remove link"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            <div className="flex min-w-[120px] flex-1 items-center gap-1">
-              <input
-                type="url"
-                value={linkInput}
-                onChange={(e) => setLinkInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addLink())}
-                placeholder="https://..."
-                className="font-mono min-h-[32px] flex-1 rounded border border-border bg-transparent px-2 text-xs text-text-primary placeholder-text-muted outline-none focus:border-accent"
-              />
-              <button
-                type="button"
-                onClick={addLink}
-                className="font-mono touch-target min-h-[32px] px-2 text-xs text-accent hover:underline"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
+        <NotionNotesEditor value={notes} onChange={setNotes} />
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <button

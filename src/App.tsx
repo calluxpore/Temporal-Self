@@ -7,20 +7,12 @@ import { MapView } from './components/MapView';
 import { Sidebar } from './components/Sidebar';
 import { AddMemoryModal } from './components/AddMemoryModal';
 import { MemoryViewer } from './components/MemoryViewer';
-import { ThemeToggle } from './components/ThemeToggle';
-import { RecallButton } from './components/RecallButton';
-import { ResetButton } from './components/ResetButton';
 import { RecallModal } from './components/RecallModal';
-import { TimelineToggle } from './components/TimelineToggle';
-import { TimelineLineStyleToggle } from './components/TimelineLineStyleToggle';
-import { HeatmapToggle } from './components/HeatmapToggle';
-import { MarkersToggle } from './components/MarkersToggle';
-import { FavoritesToggle } from './components/FavoritesToggle';
-import { ExportImportButtons } from './components/ExportImportButtons';
 import { LocationSearch } from './components/LocationSearch';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OnboardingOverlay, ONBOARDING_STEP_COUNT } from './components/OnboardingOverlay';
 import splashLogo from '../_assets/TS_Logo.png';
+import { TopControlsBar } from './components/TopControlsBar';
 
 const SPLASH_SEEN_STORAGE_KEY = 'temporal-self-splash-seen';
 const ONBOARDING_SEEN_STORAGE_KEY = 'temporal-self-onboarding-seen';
@@ -166,15 +158,7 @@ function AppContent() {
       <MapView splashActive={showSplash} onboardingActive={onboardingStep !== null} />
       <Sidebar />
       <LocationSearch />
-      <ThemeToggle />
-      <RecallButton />
-      <ResetButton />
-      <TimelineLineStyleToggle />
-      <TimelineToggle />
-      <HeatmapToggle />
-      <MarkersToggle />
-      <FavoritesToggle />
-      <ExportImportButtons />
+      <TopControlsBar />
 
       {(showAddModal || showEditModal) && (
         <AddMemoryModal

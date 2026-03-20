@@ -1,16 +1,23 @@
 import { useMemoryStore } from '../store/memoryStore';
 
-export function FavoritesToggle() {
+type TopControlVariant = 'fixed' | 'bar';
+
+export function FavoritesToggle({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const filterStarred = useMemoryStore((s) => s.filterStarred);
   const setFilterStarred = useMemoryStore((s) => s.setFilterStarred);
 
   return (
     <div
-      className="fixed z-[900] group"
-      style={{
-        top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 392px)',
-        right: 'max(24px, env(safe-area-inset-right, 0px))',
-      }}
+      className={variant === 'bar' ? 'relative z-[900] flex-shrink-0 group' : 'fixed z-[900] group'}
+      style={
+        variant === 'bar'
+          ? undefined
+          : {
+              top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 392px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }
+      }
     >
       <button
         type="button"
@@ -32,7 +39,13 @@ export function FavoritesToggle() {
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       </button>
-      <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+      <span
+        className={
+          variant === 'bar'
+            ? 'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+            : 'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+        }
+      >
         Favorites
       </span>
     </div>

@@ -65,6 +65,7 @@ const DEFAULT_ZOOM = 11;
 
 function MapClickHandler({
   onMapClick,
+  onMapBackgroundClick,
   onMapMouseMove,
   onMapDragStart,
   onMapZoomStart,
@@ -72,6 +73,7 @@ function MapClickHandler({
   hintCenterLeft,
 }: {
   onMapClick: (latlng: L.LatLng) => void;
+  onMapBackgroundClick?: () => void;
   onMapMouseMove?: (e: L.LeafletMouseEvent) => void;
   onMapDragStart?: () => void;
   onMapZoomStart?: () => void;
@@ -81,11 +83,22 @@ function MapClickHandler({
   const [ripple, setRipple] = useState<{ x: number; y: number } | null>(null);
   const [hoverTooltip, setHoverTooltip] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isEditModeOpen = useMemoryStore((s) => s.editingMemory != null);
 
   useMapEvents({
     click(e) {
       const target = e.originalEvent?.target as HTMLElement | undefined;
       if (target?.closest?.('.leaflet-control-container')) return;
+
+      // When editing a memory, clicking the map background should close the drawer
+      // instead of starting a new memory creation.
+      if (isEditModeOpen) {
+        // Avoid closing when the click originated from our memory overlays/markers.
+        if (target?.closest?.('.memory-marker-wrapper, .memory-hover-card')) return;
+        onMapBackgroundClick?.();
+        return;
+      }
+
       setRipple({ x: e.containerPoint.x, y: e.containerPoint.y });
       onMapClick(e.latlng);
       setTimeout(() => setRipple(null), 650);
@@ -150,6 +163,7 @@ function MapContent({
   showMarkers,
   visibleMemoryIds,
   onMapClick,
+  onMapBackgroundClick,
   onMapMouseMove,
   onMapDragStart,
   onMapZoomStart,
@@ -170,6 +184,7 @@ function MapContent({
   showMarkers: boolean;
   visibleMemoryIds: Set<string>;
   onMapClick: (latlng: L.LatLng) => void;
+  onMapBackgroundClick?: () => void;
   onMapMouseMove?: (e: L.LeafletMouseEvent) => void;
   onMapDragStart?: () => void;
   onMapZoomStart?: () => void;
@@ -238,6 +253,7 @@ function MapContent({
     <>
       <MapClickHandler
         onMapClick={onMapClick}
+        onMapBackgroundClick={onMapBackgroundClick}
         onMapMouseMove={onMapMouseMove}
         onMapDragStart={onMapDragStart}
         onMapZoomStart={onMapZoomStart}
@@ -727,6 +743,7 @@ export function MapView({
           showMarkers={markersVisible}
           visibleMemoryIds={visibleMemoryIds}
           onMapClick={onMapClick}
+          onMapBackgroundClick={() => setEditingMemory(null)}
           onMapMouseMove={onMapMouseMove}
           onMapDragStart={onMapDragStart}
           onMapZoomStart={onMapZoomStart}

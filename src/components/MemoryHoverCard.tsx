@@ -3,6 +3,7 @@ import { formatDate } from '../utils/formatDate';
 import { getMemoryImages } from '../utils/imageUtils';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import type { Memory } from '../types/memory';
+import { parseNotesFrontMatter } from '../utils/notesFrontMatter';
 
 interface MemoryHoverCardProps {
   memory: Memory;
@@ -25,11 +26,15 @@ export function MemoryHoverCard({
   onStartDrag,
   isDragging,
 }: MemoryHoverCardProps) {
-  const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng, { enabled: !isDragging });
+  const parsed = parseNotesFrontMatter(memory.notes ?? '');
+  const yamlLocation = parsed.frontMatter.location ?? null;
+  const yamlDate = parsed.frontMatter.date ?? null;
+
+  const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng, { enabled: !isDragging && !yamlLocation });
   const firstImage = getMemoryImages(memory)[0] ?? null;
   const [imageFocus, setImageFocus] = useState<'top' | 'center'>('center');
-  const notesPreview = memory.notes?.trim()
-    ? memory.notes.trim().slice(0, 80) + (memory.notes.length > 80 ? '…' : '')
+  const notesPreview = parsed.body?.trim()
+    ? parsed.body.trim().slice(0, 80) + (parsed.body.length > 80 ? '…' : '')
     : null;
 
   return (
@@ -82,11 +87,11 @@ export function MemoryHoverCard({
           {memory.title || 'Untitled'}
         </h3>
         <p className="font-mono mt-0.5 text-xs text-text-secondary">
-          {formatDate(memory.date)}
+          {formatDate(yamlDate ?? memory.date)}
         </p>
-        {(location || locationLoading) && (
+        {(yamlLocation || location || locationLoading) && (
           <p className="font-mono mt-0.5 text-xs text-text-muted line-clamp-2" title={location ?? undefined}>
-            {locationLoading ? '…' : location}
+            {yamlLocation ? yamlLocation : locationLoading ? '…' : location}
           </p>
         )}
         {notesPreview && (

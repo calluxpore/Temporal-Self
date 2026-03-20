@@ -39,8 +39,8 @@ const STEPS: { title: string; body: string; sidebarView?: 'list' | 'calendar' | 
     sidebarView: 'memoryStats',
   },
   {
-    title: 'Right-side controls',
-    body: 'Use the right icons for theme, recall, reset, map layers, backup/import, screenshots, and reports.',
+    title: 'Top controls',
+    body: 'Use the top icons for theme, recall, reset, map layers, backup/import, screenshots, and reports.',
   },
 ];
 
@@ -60,7 +60,7 @@ const CARD_POSITIONS: Array<{ top: string; left: string }> = [
   // Step 5: Recall stats (left sidebar)
   { top: '40%', left: '26%' },
   // Step 6: Right-side controls (top-right)
-  { top: '28%', left: '78%' },
+  { top: '28%', left: '50%' },
 ];
 
 export function OnboardingOverlay({
