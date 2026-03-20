@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toCanvas } from 'html-to-image';
 import { useMapRef } from '../context/mapContextState';
 import { useMemoryStore } from '../store/memoryStore';
@@ -77,7 +77,10 @@ export function ExportImportButtons() {
       recallSessions?: { remembered: number; forgot: number }[];
       studyParticipantId?: string | null;
       studyCheckpointTag?: 'baseline' | '2d' | '14d' | '40d' | null;
-      studyCheckpointCompletedAt?: Partial<Record<'baseline' | '2d' | '14d' | '40d', string>>;
+      studyCheckpointCompletedByParticipant?: Record<
+        string,
+        Partial<Record<'baseline' | '2d' | '14d' | '40d', string>>
+      >;
       studyEvents?: unknown[];
     };
   } | null>(null);
@@ -107,7 +110,7 @@ export function ExportImportButtons() {
 
   const studyParticipantId = useMemoryStore((s) => s.studyParticipantId);
   const studyCheckpointTag = useMemoryStore((s) => s.studyCheckpointTag);
-  const studyCheckpointCompletedAt = useMemoryStore((s) => s.studyCheckpointCompletedAt);
+  const studyCheckpointCompletedByParticipant = useMemoryStore((s) => s.studyCheckpointCompletedByParticipant);
   const studyEvents = useMemoryStore((s) => s.studyEvents);
   const setStudyParticipantId = useMemoryStore((s) => s.setStudyParticipantId);
   const setStudyCheckpointTag = useMemoryStore((s) => s.setStudyCheckpointTag);
@@ -124,6 +127,12 @@ export function ExportImportButtons() {
     };
   }, [exportOpen]);
 
+  const studyCheckpointCompletedAtForCurrentId = useMemo(() => {
+    const pid = studyParticipantId?.trim() ?? '';
+    if (!pid) return {} as Partial<Record<'baseline' | '2d' | '14d' | '40d', string>>;
+    return studyCheckpointCompletedByParticipant[pid] ?? {};
+  }, [studyCheckpointCompletedByParticipant, studyParticipantId]);
+
   const handleExportJson = useCallback(() => {
     exportToJson(memories, groups, {
       theme,
@@ -135,7 +144,7 @@ export function ExportImportButtons() {
       recallSessions,
       studyParticipantId,
       studyCheckpointTag,
-      studyCheckpointCompletedAt,
+      studyCheckpointCompletedByParticipant,
       studyEvents,
     });
     setExportOpen(false);
@@ -151,7 +160,7 @@ export function ExportImportButtons() {
     recallSessions,
     studyParticipantId,
     studyCheckpointTag,
-    studyCheckpointCompletedAt,
+    studyCheckpointCompletedByParticipant,
     studyEvents,
   ]);
 
@@ -228,8 +237,13 @@ export function ExportImportButtons() {
       if ('studyCheckpointTag' in pendingImport.appState && pendingImport.appState.studyCheckpointTag !== undefined) {
         setStudyCheckpointTag(pendingImport.appState.studyCheckpointTag ?? null);
       }
-      if ('studyCheckpointCompletedAt' in pendingImport.appState && pendingImport.appState.studyCheckpointCompletedAt !== undefined) {
-        useMemoryStore.setState({ studyCheckpointCompletedAt: pendingImport.appState.studyCheckpointCompletedAt ?? {} });
+      if (
+        'studyCheckpointCompletedByParticipant' in pendingImport.appState &&
+        pendingImport.appState.studyCheckpointCompletedByParticipant !== undefined
+      ) {
+        useMemoryStore.setState({
+          studyCheckpointCompletedByParticipant: pendingImport.appState.studyCheckpointCompletedByParticipant ?? {},
+        });
       }
       if ('studyEvents' in pendingImport.appState && pendingImport.appState.studyEvents !== undefined) {
         useMemoryStore.setState({ studyEvents: (pendingImport.appState.studyEvents ?? []) as StudyEvent[] });
@@ -395,14 +409,34 @@ export function ExportImportButtons() {
     setReportError(null);
     setReportBusy(true);
     try {
-      const doc = await generateReportPdf({ memories, groups, recallSessions });
+      const doc = await generateReportPdf({
+        memories,
+        groups,
+        recallSessions,
+        study: {
+          participantId: studyParticipantId,
+          checkpointTag: studyCheckpointTag,
+          checkpointCompletedAt: studyCheckpointCompletedAtForCurrentId,
+          checkpointCompletedByParticipant: studyCheckpointCompletedByParticipant,
+          events: studyEvents,
+        },
+      });
       doc.save(reportFilename());
     } catch (e) {
       setReportError(e instanceof Error ? e.message : 'Report failed');
     } finally {
       setReportBusy(false);
     }
-  }, [memories, groups, recallSessions]);
+  }, [
+    memories,
+    groups,
+    recallSessions,
+    studyParticipantId,
+    studyCheckpointTag,
+    studyCheckpointCompletedAtForCurrentId,
+    studyCheckpointCompletedByParticipant,
+    studyEvents,
+  ]);
 
   return (
     <>

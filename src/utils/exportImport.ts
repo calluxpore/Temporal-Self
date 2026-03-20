@@ -15,6 +15,9 @@ export interface ExportAppState {
   // Study mode
   studyParticipantId?: string | null;
   studyCheckpointTag?: StudyCheckpointTag | null;
+  /** Per–participant ID (trimmed keys): checkpoint → ISO timestamp. */
+  studyCheckpointCompletedByParticipant?: Record<string, Partial<Record<StudyCheckpointTag, string>>>;
+  /** @deprecated Import only; migrated into `studyCheckpointCompletedByParticipant`. */
   studyCheckpointCompletedAt?: Partial<Record<StudyCheckpointTag, string>>;
   studyEvents?: StudyEvent[];
 }
@@ -216,14 +219,59 @@ function normalizeAppState(raw: unknown): ExportAppState {
       'studyCheckpointTag' in o
         ? (typeof o.studyCheckpointTag === 'string' ? (o.studyCheckpointTag as StudyCheckpointTag) : null)
         : undefined,
-    studyCheckpointCompletedAt:
-      'studyCheckpointCompletedAt' in o
-        ? (o.studyCheckpointCompletedAt && typeof o.studyCheckpointCompletedAt === 'object'
-            ? (o.studyCheckpointCompletedAt as Partial<Record<StudyCheckpointTag, string>>)
-            : undefined)
-        : undefined,
+    ...normalizeStudyCheckpointMaps(o),
     studyEvents: Array.isArray(o.studyEvents) ? (o.studyEvents as StudyEvent[]) : undefined,
   };
+}
+
+const STUDY_CHECKPOINT_TAGS: StudyCheckpointTag[] = ['baseline', '2d', '14d', '40d'];
+
+/** Merge new per-ID maps with legacy flat `studyCheckpointCompletedAt` (under participant id or `_legacy`). */
+function normalizeStudyCheckpointMaps(o: Record<string, unknown>): {
+  studyCheckpointCompletedByParticipant: Record<string, Partial<Record<StudyCheckpointTag, string>>>;
+} {
+  const legacyFlat =
+    'studyCheckpointCompletedAt' in o &&
+    o.studyCheckpointCompletedAt &&
+    typeof o.studyCheckpointCompletedAt === 'object' &&
+    !Array.isArray(o.studyCheckpointCompletedAt)
+      ? (o.studyCheckpointCompletedAt as Partial<Record<StudyCheckpointTag, string>>)
+      : undefined;
+
+  const raw =
+    'studyCheckpointCompletedByParticipant' in o &&
+    o.studyCheckpointCompletedByParticipant &&
+    typeof o.studyCheckpointCompletedByParticipant === 'object' &&
+    !Array.isArray(o.studyCheckpointCompletedByParticipant)
+      ? (o.studyCheckpointCompletedByParticipant as Record<string, unknown>)
+      : undefined;
+
+  const out: Record<string, Partial<Record<StudyCheckpointTag, string>>> = {};
+
+  if (raw) {
+    for (const [k, v] of Object.entries(raw)) {
+      if (v == null || typeof v !== 'object' || Array.isArray(v)) continue;
+      const tagMap = v as Record<string, unknown>;
+      const inner: Partial<Record<StudyCheckpointTag, string>> = {};
+      for (const tag of STUDY_CHECKPOINT_TAGS) {
+        if (typeof tagMap[tag] === 'string') inner[tag] = tagMap[tag];
+      }
+      const key = k.trim() || k;
+      if (Object.keys(inner).length > 0) out[key] = inner;
+    }
+  }
+
+  const pidForLegacy =
+    typeof o.studyParticipantId === 'string' && o.studyParticipantId.trim()
+      ? o.studyParticipantId.trim()
+      : '_legacy';
+
+  if (legacyFlat && Object.keys(legacyFlat).length > 0) {
+    const existing = out[pidForLegacy] ?? {};
+    out[pidForLegacy] = { ...existing, ...legacyFlat };
+  }
+
+  return { studyCheckpointCompletedByParticipant: out };
 }
 
 /** Parse CSV text into memories (no groups; groupId column used if present). */

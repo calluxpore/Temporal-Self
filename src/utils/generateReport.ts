@@ -1,6 +1,8 @@
 import { jsPDF } from 'jspdf';
 import type { Memory, Group } from '../types/memory';
+import type { StudyCheckpointTag, StudyEvent } from '../types/study';
 import { isDueForReview } from './spacedRepetition';
+import { studyCheckpointLabel } from './studyLabels';
 import {
   svgOverviewBars,
   svgMemoriesPerYear,
@@ -8,7 +10,6 @@ import {
   svgRecallDonut,
   svgRecallByCycle,
 } from './reportCharts';
-import reportLogo from '../../_assets/TS_Logo.png';
 
 function placeKey(lat: number, lng: number): string {
   return `${Math.round(lat * 10) / 10},${Math.round(lng * 10) / 10}`;
@@ -36,97 +37,20 @@ function formatMonthKey(ym: string): string {
   return `${month} ${y}`;
 }
 
-type LoadImageMetaOptions = {
-  makeLightBgTransparent?: boolean;
-  trimTransparentPadding?: boolean;
+/** Study / research snapshot for the PDF (optional). */
+export type ReportStudySnapshot = {
+  participantId: string | null;
+  checkpointTag: StudyCheckpointTag | null;
+  checkpointCompletedAt: Partial<Record<StudyCheckpointTag, string>>;
+  checkpointCompletedByParticipant?: Record<string, Partial<Record<StudyCheckpointTag, string>>>;
+  events: StudyEvent[];
 };
-
-async function loadImageMeta(
-  url: string,
-  options?: LoadImageMetaOptions
-): Promise<{ dataUrl: string; width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('No canvas context'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0);
-
-      if (options?.makeLightBgTransparent) {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data;
-        for (let i = 0; i < pixels.length; i += 4) {
-          const r = pixels[i];
-          const g = pixels[i + 1];
-          const b = pixels[i + 2];
-          // Remove near-white matte backgrounds that create a visible rectangle in PDF.
-          if (r > 240 && g > 240 && b > 240) {
-            pixels[i + 3] = 0;
-          }
-        }
-        ctx.putImageData(imageData, 0, 0);
-      }
-
-      if (options?.trimTransparentPadding) {
-        const source = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = source.data;
-        let minX = canvas.width;
-        let minY = canvas.height;
-        let maxX = -1;
-        let maxY = -1;
-        for (let y = 0; y < canvas.height; y++) {
-          for (let x = 0; x < canvas.width; x++) {
-            const a = pixels[(y * canvas.width + x) * 4 + 3];
-            if (a > 0) {
-              if (x < minX) minX = x;
-              if (y < minY) minY = y;
-              if (x > maxX) maxX = x;
-              if (y > maxY) maxY = y;
-            }
-          }
-        }
-        if (maxX >= minX && maxY >= minY) {
-          const trimmedW = maxX - minX + 1;
-          const trimmedH = maxY - minY + 1;
-          const trimmed = document.createElement('canvas');
-          trimmed.width = trimmedW;
-          trimmed.height = trimmedH;
-          const tctx = trimmed.getContext('2d');
-          if (!tctx) {
-            reject(new Error('No canvas context'));
-            return;
-          }
-          tctx.drawImage(canvas, minX, minY, trimmedW, trimmedH, 0, 0, trimmedW, trimmedH);
-          resolve({
-            dataUrl: trimmed.toDataURL('image/png'),
-            width: trimmedW,
-            height: trimmedH,
-          });
-          return;
-        }
-      }
-
-      resolve({
-        dataUrl: canvas.toDataURL('image/png'),
-        width: canvas.width,
-        height: canvas.height,
-      });
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = url;
-  });
-}
 
 export type ReportData = {
   memories: Memory[];
   groups: Group[];
   recallSessions: { remembered: number; forgot: number }[];
+  study?: ReportStudySnapshot;
 };
 
 /** Scale factor for chart resolution (2 = sharp at PDF size). */
@@ -176,7 +100,7 @@ export async function generateReportPdf(
   data: ReportData,
   options?: GenerateReportOptions
 ): Promise<jsPDF> {
-  const { memories, groups, recallSessions } = data;
+  const { memories, groups, recallSessions, study } = data;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -185,35 +109,41 @@ export async function generateReportPdf(
   let y = margin;
   const toImage = options?.svgToImage;
 
+  const drawSectionDivider = (gapAfterMm: number = 2) => {
+    doc.setDrawColor(205, 210, 220);
+    doc.setLineWidth(0.2);
+    doc.line(margin, y, pageW - margin, y);
+    y += gapAfterMm;
+  };
+
   const now = Date.now();
 
   // —— Cover page (Apple-esque: clean, centered, minimal) ——
   doc.setFillColor(248, 248, 252);
   doc.rect(0, 0, pageW, pageH, 'F');
-  try {
-    const logo = await loadImageMeta(reportLogo, {
-      makeLightBgTransparent: true,
-      trimTransparentPadding: true,
-    });
-    const maxLogoW = pageW * 0.78;
-    const maxLogoH = pageH * 0.24;
-    const ratio = logo.width / logo.height;
-    const logoW = Math.min(maxLogoW, maxLogoH * ratio);
-    const logoH = logoW / ratio;
-    const logoX = (pageW - logoW) / 2;
-    const logoY = pageH * 0.2;
-    doc.addImage(logo.dataUrl, 'PNG', logoX, logoY, logoW, logoH);
-  } catch {
-    // If logo fails to load, keep report generation resilient.
-  }
-  doc.setTextColor(100, 100, 110);
-  doc.setFontSize(11);
+  // Cover title requested by spec (centered, big, bold).
+  doc.setTextColor(30, 30, 38);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(40);
+  const titleX = pageW / 2;
+
+  // Note: jsPDF built-in fonts can fail to render full-width glyphs.
+  // Use ASCII title text for reliable rendering.
+  doc.text('TEMPORAL', titleX, pageH * 0.44, { align: 'center' });
+  doc.text('SELF', titleX, pageH * 0.54, { align: 'center' });
+
+  doc.setTextColor(30, 30, 38);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(12);
   doc.text(
-    `Generated on ${formatReportDateTime(new Date().toISOString())}`,
+    'Mapping the geography of your mind: A longitudinal study on spatial memory.',
     pageW / 2,
     pageH * 0.64,
     { align: 'center' }
   );
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text('A Memory Atlas Project.', pageW / 2, pageH * 0.70, { align: 'center' });
   doc.addPage();
 
   const totalMemories = memories.length;
@@ -261,6 +191,9 @@ export async function generateReportPdf(
     doc.text(`Starred (favorites): ${starred}`, margin, y);
     y += SECTION_GAP_MM;
   }
+
+  // Section divider: Overview → Calendar
+  drawSectionDivider(8);
 
   // —— Section: Calendar & date distribution ——
   if (y > pageH - PAGE_BOTTOM_MARGIN_MM - 80) {
@@ -316,6 +249,9 @@ export async function generateReportPdf(
   }
   y += SECTION_GAP_MM;
 
+  // Section divider: Calendar → Groups
+  drawSectionDivider(8);
+
   // —— Section: Groups ——
   if (y > pageH - PAGE_BOTTOM_MARGIN_MM - 60) {
     doc.addPage();
@@ -358,6 +294,125 @@ export async function generateReportPdf(
     doc.text(`Ungrouped: ${ungroupedCount} memories`, margin, y);
     y += SECTION_GAP_MM;
   }
+
+  // Section divider: Groups → Study
+  drawSectionDivider(8);
+
+  // —— Section: Study ——
+  if (study) {
+    const cpOrder: StudyCheckpointTag[] = ['baseline', '2d', '14d', '40d'];
+    const byParticipant = study.checkpointCompletedByParticipant ?? {};
+
+    const participants = Object.keys(byParticipant)
+      .filter((pid) => {
+        const row = byParticipant[pid];
+        return !!row && cpOrder.some((tag) => !!row[tag]);
+      })
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+    // Fallback: if the map is empty (older snapshots), at least include the current participant's row.
+    const fallbackPid = study.participantId?.trim() ?? '';
+    const tablePids = participants.length > 0 ? participants : fallbackPid ? [fallbackPid] : [];
+
+    if (tablePids.length === 0) {
+      // No study completion data to show.
+      // Keep y as-is and skip the study table.
+      y += SECTION_GAP_MM;
+      // Skip rendering.
+    }
+
+    // Heading above the table (requested).
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 30, 38);
+    doc.text('Study', margin, y);
+    y += lineHeight * 1.8;
+
+    const tableX = margin;
+    const tableW = pageW - margin * 2;
+
+    const colPidW = Math.min(42, tableW * 0.28);
+    const colW = (tableW - colPidW) / 4;
+
+    const headers = ['Participant ID', ...cpOrder.map((t) => studyCheckpointLabel(t))];
+
+    const tableLineHeight = 4.5; // smaller than page body text
+    const cellVPad = 1.1;
+
+    doc.setDrawColor(160, 160, 160);
+    doc.setLineWidth(0.15);
+
+    const renderHeader = () => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+
+      const headerH = tableLineHeight + cellVPad * 2;
+      // If header doesn't fit, start a new page.
+      if (y > pageH - PAGE_BOTTOM_MARGIN_MM - headerH) {
+        doc.addPage();
+        y = margin;
+      }
+
+      const x0 = tableX;
+      const y0 = y;
+      const colXs = [x0, x0 + colPidW, x0 + colPidW + colW, x0 + colPidW + colW * 2, x0 + colPidW + colW * 3];
+      const colWidths = [colPidW, colW, colW, colW, colW];
+
+      for (let col = 0; col < headers.length; col++) {
+        doc.rect(colXs[col], y0, colWidths[col], headerH);
+        const label = headers[col];
+        doc.text(label, colXs[col] + 1.0, y0 + cellVPad + tableLineHeight * 0.82, {
+          baseline: 'alphabetic',
+        });
+      }
+      y += headerH;
+    };
+
+    const renderRow = (pid: string) => {
+      const rowMap = byParticipant[pid] ?? (pid === fallbackPid ? study.checkpointCompletedAt : {});
+      const rawCells = [pid, ...cpOrder.map((tag) => rowMap?.[tag] ? formatReportDateTime(rowMap[tag] as string) : '—')];
+      const colXs = [tableX, tableX + colPidW, tableX + colPidW + colW, tableX + colPidW + colW * 2, tableX + colPidW + colW * 3];
+      const colWidths = [colPidW, colW, colW, colW, colW];
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+
+      const wrappedLines = rawCells.map((txt, colIdx) => {
+        const maxWidth = colWidths[colIdx] - 2.0;
+        return doc.splitTextToSize(String(txt ?? ''), maxWidth);
+      });
+      const maxLines = Math.max(...wrappedLines.map((ls) => ls.length));
+      const rowH = tableLineHeight * maxLines + cellVPad * 2;
+
+      if (y > pageH - PAGE_BOTTOM_MARGIN_MM - rowH) {
+        doc.addPage();
+        y = margin;
+        renderHeader();
+      }
+
+      for (let col = 0; col < rawCells.length; col++) {
+        doc.rect(colXs[col], y, colWidths[col], rowH);
+        const lines = wrappedLines[col];
+        for (let i = 0; i < lines.length; i++) {
+          const lineY = y + cellVPad + tableLineHeight * (0.82 + i);
+          doc.text(lines[i], colXs[col] + 1.0, lineY, { baseline: 'alphabetic' });
+        }
+      }
+      y += rowH;
+    };
+
+    // Render table only (header + rows).
+    if (tablePids.length > 0) {
+      renderHeader();
+      for (const pid of tablePids) {
+        renderRow(pid);
+      }
+      y += SECTION_GAP_MM;
+    }
+  }
+
+  // Section divider: Study → Recall
+  drawSectionDivider(8);
 
   // —— Section: Recall & practice stats ——
   if (y > pageH - PAGE_BOTTOM_MARGIN_MM - 100) {

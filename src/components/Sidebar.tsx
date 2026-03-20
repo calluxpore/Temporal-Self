@@ -806,7 +806,13 @@ export function Sidebar() {
           <div className="h-px bg-accent/40" />
           <SearchBar />
         </div>
-        <div className="flex-1 overflow-y-auto px-1.5 py-1">
+        <div
+          className={
+            sidebarView === 'stats'
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden px-2 py-1.5'
+              : 'min-h-0 flex-1 overflow-y-auto px-1.5 py-1'
+          }
+        >
           {sidebarView === 'calendar' && (
             <CalendarView
               memories={memories}

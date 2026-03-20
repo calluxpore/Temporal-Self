@@ -44,7 +44,7 @@ JSON is designed to preserve full data and app state, including:
 - App preferences (theme, map view, start-location preference, sidebar width, etc.)
 - Research study fields (when used):
   - `studyParticipantId` and current `studyCheckpointTag`
-  - `studyCheckpointCompletedAt` timestamps
+  - `studyCheckpointCompletedByParticipant` (per participant ID: which checkpoints were completed, and when; older backups may use the legacy flat `studyCheckpointCompletedAt`, which is merged on import)
   - `studyEvents` (append-only log of key actions like memory creation/updates, recall answers, and date-filter changes)
 
 ### CSV backup (limited)
@@ -63,7 +63,7 @@ If you are running a longitudinal study (for example at 2 days, 2 weeks, and 40 
 3. Use the app normally (create memories, run recall practice).
 4. When that checkpoint session is complete, click **Mark done**.
 5. Export a **JSON** backup and analyze it externally using:
-   - `studyCheckpointCompletedAt` (what checkpoints were completed, and when)
+   - `studyCheckpointCompletedByParticipant` (what checkpoints were completed for each participant ID, and when)
    - `studyEvents` (the append-only event log)
 
 ---

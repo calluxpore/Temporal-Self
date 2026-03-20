@@ -74,8 +74,8 @@ interface MemoryState {
   studyParticipantId: string | null;
   /** Which checkpoint this participant is currently completing. */
   studyCheckpointTag: StudyCheckpointTag | null;
-  /** Timestamps for when each checkpoint was marked complete. */
-  studyCheckpointCompletedAt: Partial<Record<StudyCheckpointTag, string>>;
+  /** Per–participant ID: timestamps when each checkpoint was marked complete (key = trimmed participant ID). */
+  studyCheckpointCompletedByParticipant: Record<string, Partial<Record<StudyCheckpointTag, string>>>;
   /** Append-only event log used for longitudinal analysis. */
   studyEvents: StudyEvent[];
   setStudyParticipantId: (id: string | null) => void;
@@ -200,7 +200,7 @@ export const useMemoryStore = create<MemoryState>()(
       currentSessionForgot: 0,
       studyParticipantId: null,
       studyCheckpointTag: null,
-      studyCheckpointCompletedAt: {},
+      studyCheckpointCompletedByParticipant: {},
       studyEvents: [],
       skipDeleteConfirmation: false,
 
@@ -260,6 +260,8 @@ export const useMemoryStore = create<MemoryState>()(
           if (!state.studyCheckpointTag) return state;
           const ts = new Date().toISOString();
           const checkpointTag = state.studyCheckpointTag;
+          const pid = state.studyParticipantId?.trim();
+          if (!pid) return state;
           const event: StudyEvent = {
             id: crypto.randomUUID(),
             ts,
@@ -272,10 +274,14 @@ export const useMemoryStore = create<MemoryState>()(
             state.studyEvents.length >= cap
               ? state.studyEvents.slice(state.studyEvents.length - cap + 1)
               : state.studyEvents;
+          const prevForPid = state.studyCheckpointCompletedByParticipant[pid] ?? {};
           return {
-            studyCheckpointCompletedAt: {
-              ...state.studyCheckpointCompletedAt,
-              [checkpointTag]: ts,
+            studyCheckpointCompletedByParticipant: {
+              ...state.studyCheckpointCompletedByParticipant,
+              [pid]: {
+                ...prevForPid,
+                [checkpointTag]: ts,
+              },
             },
             studyEvents: [...nextEvents, event],
           };
@@ -587,13 +593,17 @@ export const useMemoryStore = create<MemoryState>()(
           editingMemory: null,
           mapView: null,
           hasChosenStartLocation: false,
+          studyParticipantId: null,
+          studyCheckpointTag: null,
+          studyCheckpointCompletedByParticipant: {},
+          studyEvents: [],
           undoStack: [],
           redoStack: [],
         }),
     }),
     {
       name: 'memory-atlas-storage',
-      version: 6,
+      version: 7,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         mapView: state.mapView,
@@ -607,7 +617,7 @@ export const useMemoryStore = create<MemoryState>()(
         recallSessions: state.recallSessions,
         studyParticipantId: state.studyParticipantId,
         studyCheckpointTag: state.studyCheckpointTag,
-        studyCheckpointCompletedAt: state.studyCheckpointCompletedAt,
+        studyCheckpointCompletedByParticipant: state.studyCheckpointCompletedByParticipant,
         studyEvents: state.studyEvents,
       }),
       migrate: (persisted: unknown, version: number) => {
@@ -647,6 +657,34 @@ export const useMemoryStore = create<MemoryState>()(
             studyCheckpointCompletedAt: p.studyCheckpointCompletedAt ?? {},
             studyEvents: Array.isArray(p.studyEvents) ? p.studyEvents : [],
           } as Record<string, unknown>;
+        }
+        if (version < 7) {
+          const legacy =
+            p.studyCheckpointCompletedAt &&
+            typeof p.studyCheckpointCompletedAt === 'object' &&
+            !Array.isArray(p.studyCheckpointCompletedAt)
+              ? (p.studyCheckpointCompletedAt as Partial<Record<StudyCheckpointTag, string>>)
+              : null;
+          const existing =
+            p.studyCheckpointCompletedByParticipant &&
+            typeof p.studyCheckpointCompletedByParticipant === 'object' &&
+            !Array.isArray(p.studyCheckpointCompletedByParticipant)
+              ? (p.studyCheckpointCompletedByParticipant as Record<
+                  string,
+                  Partial<Record<StudyCheckpointTag, string>>
+                >)
+              : null;
+          if (existing) {
+            return { ...p, studyCheckpointCompletedByParticipant: existing } as Record<string, unknown>;
+          }
+          const pid =
+            typeof p.studyParticipantId === 'string' && p.studyParticipantId.trim()
+              ? p.studyParticipantId.trim()
+              : '_legacy';
+          const byParticipant: Record<string, Partial<Record<StudyCheckpointTag, string>>> = legacy
+            ? { [pid]: legacy }
+            : {};
+          return { ...p, studyCheckpointCompletedByParticipant: byParticipant } as Record<string, unknown>;
         }
         return persisted as Record<string, unknown>;
       },
