@@ -1,9 +1,8 @@
-import { useMemo } from 'react';
-import { useIsMd } from '../hooks/useMediaQuery';
-import { useMemoryStore } from '../store/memoryStore';
+import { useChromeCenterLeft } from '../hooks/useChromeCenterLeft';
 import { ThemeToggle } from './ThemeToggle';
 import { RecallButton } from './RecallButton';
 import { ResetButton } from './ResetButton';
+import { MemorySearchButton } from './MemorySearchButton';
 import { TimelineLineStyleToggle } from './TimelineLineStyleToggle';
 import { TimelineToggle } from './TimelineToggle';
 import { HeatmapToggle } from './HeatmapToggle';
@@ -12,16 +11,7 @@ import { FavoritesToggle } from './FavoritesToggle';
 import { ExportImportButtons } from './ExportImportButtons';
 
 export function TopControlsBar() {
-  const isMd = useIsMd();
-  const sidebarOpen = useMemoryStore((s) => s.sidebarOpen);
-  const sidebarWidth = useMemoryStore((s) => s.sidebarWidth);
-
-  const left = useMemo(() => {
-    if (isMd && sidebarOpen) {
-      return `calc(${sidebarWidth}px + (100vw - ${sidebarWidth}px) / 2)`;
-    }
-    return '50%';
-  }, [isMd, sidebarOpen, sidebarWidth]);
+  const left = useChromeCenterLeft();
 
   return (
     <div
@@ -36,6 +26,7 @@ export function TopControlsBar() {
         <ThemeToggle variant="bar" />
         <RecallButton variant="bar" />
         <ResetButton variant="bar" />
+        <MemorySearchButton variant="bar" />
         <TimelineLineStyleToggle variant="bar" />
         <TimelineToggle variant="bar" />
         <HeatmapToggle variant="bar" />

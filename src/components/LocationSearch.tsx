@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMapRef } from '../context/mapContextState';
 import { useMemoryStore } from '../store/memoryStore';
-import { useIsMd } from '../hooks/useMediaQuery';
+import { useChromeCenterLeft } from '../hooks/useChromeCenterLeft';
 import type { SearchHighlightBbox } from '../store/memoryStore';
 
 /** [south, north, west, east] - when present and not a tiny box, treat as area. */
@@ -107,9 +107,7 @@ async function searchLocation(
 
 export function LocationSearch() {
   const map = useMapRef();
-  const isMd = useIsMd();
-  const sidebarOpen = useMemoryStore((s) => s.sidebarOpen);
-  const sidebarWidth = useMemoryStore((s) => s.sidebarWidth);
+  const left = useChromeCenterLeft();
   const setSearchHighlight = useMemoryStore((s) => s.setSearchHighlight);
 
   const [query, setQuery] = useState('');
@@ -216,10 +214,7 @@ export function LocationSearch() {
       className="fixed bottom-8 z-[700] w-full max-w-md -translate-x-1/2 px-4 safe-area-bottom transition-[left] duration-300"
       style={{
         bottom: 'max(2rem, env(safe-area-inset-bottom, 0px))',
-        left:
-          isMd && sidebarOpen
-            ? `calc(${sidebarWidth}px + (100vw - ${sidebarWidth}px) / 2)`
-            : '50%',
+        left,
       }}
     >
       <div className="relative">

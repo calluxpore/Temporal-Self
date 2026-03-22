@@ -13,6 +13,9 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { OnboardingOverlay, ONBOARDING_STEP_COUNT } from './components/OnboardingOverlay';
 import splashLogo from '../_assets/TS_Logo.png';
 import { TopControlsBar } from './components/TopControlsBar';
+import { SettingsDrawer } from './components/SettingsDrawer';
+import { MemorySearchDrawer } from './components/MemorySearchDrawer';
+import { useVaultSync } from './hooks/useVaultSync';
 
 const SPLASH_SEEN_STORAGE_KEY = 'temporal-self-splash-seen';
 const ONBOARDING_SEEN_STORAGE_KEY = 'temporal-self-onboarding-seen';
@@ -44,6 +47,8 @@ function AppContent() {
   );
   const [viewerOpenedFromRecall, setViewerOpenedFromRecall] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
+  const settingsDrawerOpen = useMemoryStore((s) => s.settingsDrawerOpen);
+  const memorySearchDrawerOpen = useMemoryStore((s) => s.memorySearchDrawerOpen);
 
   const onRequestNewMemory = useCallback(() => {
     if (map) {
@@ -54,6 +59,7 @@ function AppContent() {
   }, [map, setPendingLatLng, setIsAddingMemory]);
 
   useKeyboardShortcuts(onRequestNewMemory);
+  useVaultSync();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -67,7 +73,9 @@ function AppContent() {
     showAddModal ||
     showEditModal ||
     !!selectedMemory ||
-    !!recallModalMemoryId;
+    !!recallModalMemoryId ||
+    settingsDrawerOpen ||
+    memorySearchDrawerOpen;
 
   useEffect(() => {
     if (hasOverlay) {
@@ -159,6 +167,8 @@ function AppContent() {
       <Sidebar />
       <LocationSearch />
       <TopControlsBar />
+      <SettingsDrawer />
+      <MemorySearchDrawer />
 
       {(showAddModal || showEditModal) && (
         <AddMemoryModal

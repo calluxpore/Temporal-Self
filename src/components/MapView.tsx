@@ -17,7 +17,7 @@ import { memoriesInSidebarOrder, compareOrderThenCreatedAt } from '../utils/memo
 import { filterMemoriesByDate } from '../utils/dateFilter';
 import { smoothCurveThroughPoints } from '../utils/timelineCurve';
 import { buildOrthogonalRoute } from '../utils/timelineOrthogonal';
-import { useIsMd } from '../hooks/useMediaQuery';
+import { useChromeCenterLeft } from '../hooks/useChromeCenterLeft';
 
 function ZoomControlPlacement() {
   const map = useMap();
@@ -84,16 +84,30 @@ function MapClickHandler({
   const [hoverTooltip, setHoverTooltip] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isEditModeOpen = useMemoryStore((s) => s.editingMemory != null);
+  const isAddMemoryOpen = useMemoryStore((s) => s.isAddingMemory && s.pendingLatLng != null);
+  const settingsDrawerOpen = useMemoryStore((s) => s.settingsDrawerOpen);
+  const setSettingsDrawerOpen = useMemoryStore((s) => s.setSettingsDrawerOpen);
+  const memorySearchDrawerOpen = useMemoryStore((s) => s.memorySearchDrawerOpen);
+  const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
 
   useMapEvents({
     click(e) {
       const target = e.originalEvent?.target as HTMLElement | undefined;
       if (target?.closest?.('.leaflet-control-container')) return;
 
-      // When editing a memory, clicking the map background should close the drawer
-      // instead of starting a new memory creation.
-      if (isEditModeOpen) {
-        // Avoid closing when the click originated from our memory overlays/markers.
+      // Settings drawer: first map click only closes it; next click can pin a new memory.
+      if (settingsDrawerOpen) {
+        setSettingsDrawerOpen(false);
+        return;
+      }
+
+      if (memorySearchDrawerOpen) {
+        setMemorySearchDrawerOpen(false);
+        return;
+      }
+
+      // Editing or creating a memory: map background closes the side drawer instead of starting another pin.
+      if (isEditModeOpen || isAddMemoryOpen) {
         if (target?.closest?.('.memory-marker-wrapper, .memory-hover-card')) return;
         onMapBackgroundClick?.();
         return;
@@ -132,7 +146,7 @@ function MapClickHandler({
       )}
       {hoverTooltip && !mapBlurred && (
         <div
-          className="pointer-events-none fixed z-[1000] font-mono text-[10px] tracking-widest text-accent opacity-90"
+          className="pointer-events-none fixed z-[1000] font-mono text-[10px] tracking-widest text-accent opacity-90 transition-[left] duration-300"
           style={{
             left: hintCenterLeft,
             bottom: '5.5rem',
@@ -162,6 +176,7 @@ function MapContent({
   hintCenterLeft,
   showMarkers,
   visibleMemoryIds,
+  memorySearchMatchSet,
   onMapClick,
   onMapBackgroundClick,
   onMapMouseMove,
@@ -183,6 +198,7 @@ function MapContent({
   hintCenterLeft: string;
   showMarkers: boolean;
   visibleMemoryIds: Set<string>;
+  memorySearchMatchSet: Set<string> | null;
   onMapClick: (latlng: L.LatLng) => void;
   onMapBackgroundClick?: () => void;
   onMapMouseMove?: (e: L.LeafletMouseEvent) => void;
@@ -345,6 +361,7 @@ function MapContent({
               memory={m}
               label={m.customLabel?.trim() || memoryIdToLabel.get(m.id)}
               routeRole={routeEndIds.has(m.id) ? 'end' : routeStartIds.has(m.id) ? 'start' : undefined}
+              searchHit={memorySearchMatchSet?.has(m.id) ?? false}
               onMouseOver={onMarkerHover}
               onMouseOut={onMarkerHoverOut}
               onClick={onMarkerClick}
@@ -395,8 +412,6 @@ export function MapView({
   const pendingDragRef = useRef<{ lat: number; lng: number; x: number; y: number } | null>(null);
   const suppressCardClickRef = useRef(false);
   const prefersHover = usePrefersHover();
-  const isMd = useIsMd();
-  const sidebarOpen = useMemoryStore((s) => s.sidebarOpen);
   const mapView = useMemoryStore((s) => s.mapView);
   const hasChosenStartLocation = useMemoryStore((s) => s.hasChosenStartLocation);
   const setMapView = useMemoryStore((s) => s.setMapView);
@@ -421,7 +436,6 @@ export function MapView({
   }, [hoveredMemory, visibleMemories]);
   const groups = useMemoryStore((s) => s.groups);
   const theme = useMemoryStore((s) => s.theme);
-  const sidebarWidth = useMemoryStore((s) => s.sidebarWidth);
   const pendingLatLng = useMemoryStore((s) => s.pendingLatLng);
   const searchHighlight = useMemoryStore((s) => s.searchHighlight);
   const timelineEnabled = useMemoryStore((s) => s.timelineEnabled);
@@ -430,10 +444,7 @@ export function MapView({
   const pushUndo = useMemoryStore((s) => s.pushUndo);
   const updateMemoryWithoutUndo = useMemoryStore((s) => s.updateMemoryWithoutUndo);
 
-  const hintCenterLeft =
-    isMd && sidebarOpen
-      ? `calc(${sidebarWidth}px + (100vw - ${sidebarWidth}px) / 2)`
-      : '50%';
+  const hintCenterLeft = useChromeCenterLeft();
   const setPendingLatLng = useMemoryStore((s) => s.setPendingLatLng);
   const setSearchHighlight = useMemoryStore((s) => s.setSearchHighlight);
   const setIsAddingMemory = useMemoryStore((s) => s.setIsAddingMemory);
@@ -458,6 +469,11 @@ export function MapView({
         .map((m) => m.id)
     );
   }, [visibleMemories, groups]);
+  const memorySearchMatchIds = useMemoryStore((s) => s.memorySearchMatchIds);
+  const memorySearchMatchSet = useMemo(() => {
+    if (!memorySearchMatchIds?.length) return null;
+    return new Set(memorySearchMatchIds);
+  }, [memorySearchMatchIds]);
   const tileUrl = theme === 'dark' ? TILE_URLS.dark : TILE_URLS.light;
 
   const closeHoverCard = useCallback(() => {
@@ -742,8 +758,13 @@ export function MapView({
           hintCenterLeft={hintCenterLeft}
           showMarkers={markersVisible}
           visibleMemoryIds={visibleMemoryIds}
+          memorySearchMatchSet={memorySearchMatchSet}
           onMapClick={onMapClick}
-          onMapBackgroundClick={() => setEditingMemory(null)}
+          onMapBackgroundClick={() => {
+            setEditingMemory(null);
+            setPendingLatLng(null);
+            setIsAddingMemory(false);
+          }}
           onMapMouseMove={onMapMouseMove}
           onMapDragStart={onMapDragStart}
           onMapZoomStart={onMapZoomStart}

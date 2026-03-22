@@ -13,6 +13,8 @@ import { getMemoryLabel } from '../utils/memoryLabel';
 import { getMemoryImages } from '../utils/imageUtils';
 import { filterMemoriesByDate } from '../utils/dateFilter';
 import type { Memory } from '../types/memory';
+import { memoryNoteDisplayName } from '../utils/vaultMarkdown';
+import { SidebarVaultRow } from './SidebarVaultRow';
 
 const UNGROUPED_ID = '__ungrouped__';
 
@@ -23,6 +25,7 @@ function memoryMatchesSearch(m: Memory, q: string): boolean {
   return (
     tagMatch ||
     m.title.toLowerCase().includes(lower) ||
+    memoryNoteDisplayName(m).toLowerCase().includes(lower) ||
     m.notes.toLowerCase().includes(lower) ||
     m.date.toLowerCase().includes(lower)
   );
@@ -232,7 +235,7 @@ function MemoryListItem({
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-display text-text-primary truncate text-[11px] font-medium leading-tight">
-            {highlightMatch(memory.title || 'Untitled', searchQuery)}
+            {highlightMatch(memoryNoteDisplayName(memory), searchQuery)}
           </div>
           <div className="font-mono text-[10px] text-text-secondary leading-tight">
             {formatDate(memory.date)}
@@ -655,7 +658,7 @@ export function Sidebar() {
       if (skipDeleteConfirmation) {
         removeMemory(m.id);
       } else {
-        setConfirmDeleteMemory({ id: m.id, name: m.title || 'Untitled' });
+        setConfirmDeleteMemory({ id: m.id, name: memoryNoteDisplayName(m) });
       }
     },
     [skipDeleteConfirmation, removeMemory]
@@ -986,6 +989,7 @@ export function Sidebar() {
               Redo
             </button>
           </div>
+          <SidebarVaultRow />
           <p className="font-mono text-[10px] text-text-secondary">
             {filterStarred ? `${visibleMemories.length} FAVORITES` : `${memories.length} MEMORIES ARCHIVED`}
           </p>

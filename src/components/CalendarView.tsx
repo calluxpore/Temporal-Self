@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Memory } from '../types/memory';
+import { memoryNoteDisplayName } from '../utils/vaultMarkdown';
 
 interface CalendarViewProps {
   memories: Memory[];
@@ -145,7 +146,7 @@ export function CalendarView({
                     onClick={(e) => onMemoryClick(e, m)}
                     className="font-mono w-full truncate text-left text-[11px] text-text-primary hover:text-accent"
                   >
-                    {m.title || 'Untitled'}
+                    {memoryNoteDisplayName(m)}
                   </button>
                 </li>
               ))}

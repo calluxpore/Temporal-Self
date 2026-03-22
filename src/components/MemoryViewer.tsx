@@ -11,6 +11,7 @@ import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import { parseNotesFrontMatter } from '../utils/notesFrontMatter';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Memory } from '../types/memory';
+import { memoryNoteDisplayName } from '../utils/vaultMarkdown';
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -30,13 +31,13 @@ function exportMemoryAsHtml(memory: Memory): void {
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>${escapeHtml(memory.title || 'Untitled')} – Temporal Self</title>
+<title>${escapeHtml(memoryNoteDisplayName(memory))} – Temporal Self</title>
 <style>body{font-family:system-ui,sans-serif;max-width:600px;margin:2rem auto;padding:0 1rem;color:#1a1917;background:#f5f3ef;}
 h1{font-size:1.5rem;} .muted{color:#6b6872;font-size:0.875rem;} .notes{white-space:pre-wrap;margin-top:1rem;}
 img{max-width:100%;height:auto;border-radius:8px;} a{color:#2563eb;}</style></head>
 <body>
 ${img ? `<img src="${img}" alt=""/>` : ''}
-<h1>${escapeHtml(memory.title || 'Untitled')}</h1>
+<h1>${escapeHtml(memoryNoteDisplayName(memory))}</h1>
 <p class="muted">${formatDate(parsed.frontMatter.date ?? memory.date, true)} · ${memory.lat.toFixed(4)}, ${memory.lng.toFixed(4)}</p>
 ${parsed.body ? `<div class="notes">${escapeHtml(parsed.body)}</div>` : ''}
 ${links.length ? `<p class="muted">Links: ${links.map((u) => `<a href="${escapeHtml(
@@ -48,7 +49,7 @@ ${links.length ? `<p class="muted">Links: ${links.map((u) => `<a href="${escapeH
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `memory-${(memory.title || 'untitled').replace(/\s+/g, '-').slice(0, 30)}.html`;
+  a.download = `memory-${memoryNoteDisplayName(memory).replace(/\s+/g, '-').slice(0, 30)}.html`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -111,7 +112,6 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
 
   const [active, setActive] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const [photoFocus, setPhotoFocus] = useState<'top' | 'center'>('center');
   const images = getMemoryImages(memory);
   const [imageIndex, setImageIndex] = useState(0);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -124,10 +124,6 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
   const displayLinks = parsed.frontMatter.links ?? memory.links ?? [];
   const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng);
 
-  useEffect(() => {
-    const t = requestAnimationFrame(() => setPhotoFocus('center'));
-    return () => cancelAnimationFrame(t);
-  }, [imageIndex]);
   useEffect(() => {
     const t = requestAnimationFrame(() => setActive(true));
     return () => cancelAnimationFrame(t);
@@ -166,7 +162,7 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
             {formatCoords(memory.lat, memory.lng)}
           </p>
           <h2 className="font-display mt-2 text-2xl font-semibold text-text-primary md:text-5xl">
-            {memory.title || 'Untitled'}
+            {memoryNoteDisplayName(memory)}
           </h2>
           <p className="font-mono mt-2 text-sm text-text-secondary">
             {formatDate(displayDate, true)}
@@ -197,6 +193,14 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
                     <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent">
                       {children}
                     </a>
+                  ),
+                  img: ({ src, alt, ...props }) => (
+                    <img
+                      src={src}
+                      alt={alt ?? ''}
+                      className="my-3 max-h-[min(70vh,640px)] max-w-full rounded-lg border border-border object-contain"
+                      {...props}
+                    />
                   ),
                   pre({ children, ...props }) {
                     return (
@@ -303,7 +307,7 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
 
       <div
         ref={photoRef}
-        className="relative order-first h-[40vh] flex-shrink-0 overflow-hidden bg-surface-elevated md:order-2 md:h-full md:min-h-0 md:flex-1"
+        className="relative order-first flex h-[40vh] flex-shrink-0 items-center justify-center overflow-auto bg-surface-elevated p-2 md:order-2 md:h-full md:min-h-0 md:flex-1 md:p-4"
         onMouseMove={hasHover ? handleMouseMove : undefined}
         onMouseLeave={hasHover ? handleMouseLeave : undefined}
       >
@@ -311,17 +315,12 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
           <img
             src={currentImage}
             alt=""
-            className="h-full w-full object-cover transition-transform duration-150 ease-out"
-            style={{
-              objectPosition: photoFocus === 'top' ? 'top' : 'center',
-              ...(hasHover
-                ? { transform: `translate(${parallax.x}px, ${parallax.y}px) scale(1.05)` }
-                : {}),
-            }}
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              if (img.naturalHeight > img.naturalWidth) setPhotoFocus('top');
-            }}
+            className="max-h-full max-w-full object-contain transition-transform duration-150 ease-out"
+            style={
+              hasHover
+                ? { transform: `translate(${parallax.x}px, ${parallax.y}px)` }
+                : undefined
+            }
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-text-muted font-mono text-sm">

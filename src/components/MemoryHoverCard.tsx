@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { formatDate } from '../utils/formatDate';
 import { getMemoryImages } from '../utils/imageUtils';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import type { Memory } from '../types/memory';
 import { parseNotesFrontMatter } from '../utils/notesFrontMatter';
+import { memoryNoteDisplayName } from '../utils/vaultMarkdown';
 
 interface MemoryHoverCardProps {
   memory: Memory;
@@ -32,7 +32,6 @@ export function MemoryHoverCard({
 
   const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng, { enabled: !isDragging && !yamlLocation });
   const firstImage = getMemoryImages(memory)[0] ?? null;
-  const [imageFocus, setImageFocus] = useState<'top' | 'center'>('center');
   const notesPreview = parsed.body?.trim()
     ? parsed.body.trim().slice(0, 80) + (parsed.body.length > 80 ? '…' : '')
     : null;
@@ -69,22 +68,13 @@ export function MemoryHoverCard({
         />
       )}
       {firstImage && (
-        <div className="h-24 w-full overflow-hidden rounded-t">
-          <img
-            src={firstImage}
-            alt=""
-            className="h-full w-full object-cover"
-            style={{ objectPosition: imageFocus === 'top' ? 'top' : 'center' }}
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              if (img.naturalHeight > img.naturalWidth) setImageFocus('top');
-            }}
-          />
+        <div className="flex h-24 w-full items-center justify-center overflow-hidden rounded-t bg-surface-elevated">
+          <img src={firstImage} alt="" className="max-h-24 max-w-full object-contain" />
         </div>
       )}
       <div className="p-3">
         <h3 className="font-display text-sm font-semibold text-text-primary line-clamp-2">
-          {memory.title || 'Untitled'}
+          {memoryNoteDisplayName(memory)}
         </h3>
         <p className="font-mono mt-0.5 text-xs text-text-secondary">
           {formatDate(yamlDate ?? memory.date)}

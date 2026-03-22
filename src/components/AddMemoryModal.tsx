@@ -11,6 +11,8 @@ import { ConfirmDialog } from './ConfirmDialog';
 import type { Memory, PendingLatLng } from '../types/memory';
 import { NotionNotesEditor } from './NotionNotesEditor';
 import { parseNotesFrontMatter, serializeNotesFrontMatter } from '../utils/notesFrontMatter';
+import { memoryNoteDisplayName, vaultTitleFilenameError } from '../utils/vaultMarkdown';
+import { findVaultFilenameConflict, vaultDuplicateFilenameMessage } from '../utils/vaultFilenameConflict';
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -69,7 +71,6 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const [imageDataUrls, setImageDataUrls] = useState<string[]>(() =>
     editingMemory ? getMemoryImages(editingMemory) : []
   );
-  const [mainImageFocus, setMainImageFocus] = useState<'top' | 'center'>('center');
   const defaultGroupId = useMemoryStore((s) => s.defaultGroupId);
   const [groupId, setGroupId] = useState<string | null>(
     editingMemory ? (editingMemory.groupId ?? null) : (defaultGroupId ?? null)
@@ -81,10 +82,12 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [vaultTitleError, setVaultTitleError] = useState<string | null>(null);
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const groups = useMemoryStore((s) => s.groups);
+  const memories = useMemoryStore((s) => s.memories);
   const { location } = useReverseGeocode(effectiveLat, effectiveLng);
   const locationForYaml = location ?? notesFrontMatterInitial.location ?? formatCoords(effectiveLat, effectiveLng);
 
@@ -112,7 +115,6 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
       }
       if (toAdd.length) {
         setImageDataUrls((prev) => [...prev, ...toAdd]);
-        setMainImageFocus('center');
       }
     },
     []
@@ -130,10 +132,21 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
 
   const removeImageAt = (index: number) => {
     setImageDataUrls((prev) => prev.filter((_, i) => i !== index));
-    setMainImageFocus('center');
   };
 
   const handleSave = () => {
+    const titleToSave = title.trim() || 'Untitled';
+    const reservedErr = vaultTitleFilenameError(titleToSave);
+    if (reservedErr) {
+      setVaultTitleError(reservedErr);
+      return;
+    }
+    const dup = findVaultFilenameConflict(memories, titleToSave, editingMemory?.id ?? null);
+    if (dup) {
+      setVaultTitleError(vaultDuplicateFilenameMessage(dup));
+      return;
+    }
+
     const chosenGroupId = groupId || null;
     const firstImage = imageDataUrls[0] ?? null;
     const parsed = parseNotesFrontMatter(notes);
@@ -150,7 +163,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     const linksField = linksToSave.length ? linksToSave : undefined;
     if (editingMemory) {
       updateMemory(editingMemory.id, {
-        title: title.trim() || 'Untitled',
+        title: titleToSave,
         date: dateToSave,
         notes: notesFull,
         imageDataUrls: imageDataUrls.length ? imageDataUrls : undefined,
@@ -167,7 +180,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         id: generateId(),
         lat: pending.lat,
         lng: pending.lng,
-        title: title.trim() || 'Untitled',
+        title: titleToSave,
         date: dateToSave,
         notes: notesFull,
         imageDataUrl: firstImage,
@@ -261,24 +274,13 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
 
   return (
     <>
-      <div
-        className={
-          isEdit
-            ? 'pointer-events-none fixed inset-0 z-[1100] bg-background/10'
-            : 'fixed inset-0 z-[1100] bg-background/60 backdrop-blur-[2px]'
-        }
-        onClick={isEdit ? undefined : onClose}
-        aria-hidden
-      />
+      {/* Same light scrim + right drawer for new memories and edits (matches edit UX). */}
+      <div className="pointer-events-none fixed inset-0 z-[1100] bg-background/10" aria-hidden />
       <div
         ref={modalRef}
-        className={
-          isEdit
-            ? `pointer-events-auto fixed inset-y-0 right-0 z-[1101] flex w-[min(540px,92vw)] sm:w-[min(620px,88vw)] lg:w-[min(780px,70vw)] xl:w-[min(860px,60vw)] flex-col rounded-l-xl border border-border bg-surface shadow-xl transition-transform duration-300 ease-out ${
-                open ? 'translate-x-0' : 'translate-x-full'
-              }`
-            : `modal-slide-up fixed inset-0 z-[1101] flex flex-col bg-surface md:inset-auto md:left-1/2 md:top-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:rounded border border-border md:shadow-xl ${open ? 'open' : ''}`
-        }
+        className={`pointer-events-auto fixed inset-y-0 right-0 z-[1101] flex w-[min(540px,92vw)] sm:w-[min(620px,88vw)] lg:w-[min(780px,70vw)] xl:w-[min(860px,60vw)] flex-col rounded-l-xl border border-border bg-surface shadow-xl transition-transform duration-300 ease-out ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
         onClick={(e) => e.stopPropagation()}
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)',
@@ -297,136 +299,20 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
               {formatCoords(effectiveLat, effectiveLng)}
             </p>
           </div>
-          {isEdit && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="touch-target flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border bg-surface/70 text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary active:opacity-80"
-              aria-label="Close"
-              title="Close"
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="touch-target flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border bg-surface/70 text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary active:opacity-80"
+            aria-label="Close"
+            title="Close"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => {
-            if (imageDataUrls.length) {
-              setImagePreviewOpen(true);
-            } else {
-              fileInputRef.current?.click();
-            }
-          }}
-          className={`mt-4 flex min-h-[120px] aspect-video w-full cursor-pointer touch-target flex-col items-center justify-center rounded border-2 border-dashed transition-colors ${
-            dragOver ? 'border-accent bg-accent-glow' : 'border-border bg-surface-elevated'
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={handleFileInput}
-          />
-          {imageDataUrls[0] ? (
-            <img
-              src={imageDataUrls[0]}
-              alt="Preview"
-              className="h-full w-full rounded object-cover pointer-events-none"
-              style={{ objectPosition: mainImageFocus === 'top' ? 'top' : 'center' }}
-              onLoad={(e) => {
-                const img = e.currentTarget;
-                if (img.naturalHeight > img.naturalWidth) setMainImageFocus('top');
-              }}
-            />
-          ) : (
-            <span className="font-mono text-sm text-text-muted">
-              Drop photos or click to upload
-            </span>
-          )}
-          {uploadError && (
-            <p className="mt-2 font-mono text-xs text-danger">{uploadError}</p>
-          )}
-        </div>
-        {imageDataUrls.length > 1 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {imageDataUrls.map((url, i) => (
-              <div key={i} className="relative">
-                <img
-                  src={url}
-                  alt=""
-                  className="h-14 w-14 rounded object-cover border border-border"
-                />
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); removeImageAt(i); }}
-                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-[10px] text-white"
-                  aria-label="Remove photo"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {imagePreviewOpen && imageDataUrls.length > 0 && (
-          <>
-            <div
-              className="fixed inset-0 z-[1102] bg-background/80 backdrop-blur-sm"
-              onClick={() => setImagePreviewOpen(false)}
-              aria-hidden
-            />
-            <div
-              className="fixed inset-0 z-[1103] flex items-center justify-center p-4"
-              onClick={() => setImagePreviewOpen(false)}
-              role="dialog"
-              aria-modal="true"
-              aria-label="Image preview"
-            >
-              <div
-                className="relative max-h-[85vh] max-w-[90vw] overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <img
-                  src={imageDataUrls[0]}
-                  alt="Preview"
-                  className="max-h-[85vh] max-w-full object-contain"
-                />
-                <div className="flex flex-wrap gap-2 border-t border-border bg-surface p-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImagePreviewOpen(false);
-                      fileInputRef.current?.click();
-                    }}
-                    className="font-mono touch-target min-h-[40px] px-3 text-sm text-accent underline-offset-2 hover:underline"
-                  >
-                    Add more photos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setImagePreviewOpen(false)}
-                    className="font-mono touch-target min-h-[40px] px-3 text-sm text-text-secondary hover:text-text-primary"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        <div className="mt-6 flex items-center gap-3">
+        <div className="mt-4 flex items-center gap-3">
           <div className="relative flex h-10 w-10 flex-shrink-0 md:h-12 md:w-12">
             <button
               ref={iconButtonRef}
@@ -466,12 +352,22 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           <input
             type="text"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setVaultTitleError(null);
+            }}
             placeholder="Name this memory..."
             className="font-display min-w-0 flex-1 border-none bg-transparent text-xl font-semibold text-text-primary placeholder-text-muted outline-none md:text-2xl md:font-bold"
             style={{ fontSize: 'min(1.25rem, 5vw)' }}
+            aria-invalid={vaultTitleError ? true : undefined}
+            aria-describedby={vaultTitleError ? 'vault-title-error' : undefined}
           />
         </div>
+        {vaultTitleError && (
+          <p id="vault-title-error" className="mt-2 font-mono text-xs text-danger" role="alert">
+            {vaultTitleError}
+          </p>
+        )}
 
         <div className="mt-4" ref={groupDropdownRef}>
           <label className="font-mono mb-1 block text-xs text-text-secondary">
@@ -544,6 +440,119 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           </div>
         </div>
 
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => {
+            if (imageDataUrls.length) {
+              setImagePreviewOpen(true);
+            } else {
+              fileInputRef.current?.click();
+            }
+          }}
+          className={`relative z-0 mt-6 flex h-[min(34vh,320px)] min-h-[132px] w-full cursor-pointer touch-target flex-col overflow-hidden rounded border-2 border-dashed transition-colors ${
+            dragOver ? 'border-accent bg-accent-glow' : 'border-border bg-surface-elevated'
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleFileInput}
+          />
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+            {imageDataUrls[0] ? (
+              <img
+                src={imageDataUrls[0]}
+                alt="Preview"
+                className="mx-auto block w-full max-w-full rounded object-contain pointer-events-none select-none"
+              />
+            ) : (
+              <div className="flex h-full min-h-[108px] items-center justify-center px-3 py-4">
+                <span className="text-center font-mono text-sm text-text-muted">
+                  Drop photos or click to upload
+                </span>
+              </div>
+            )}
+            {uploadError && (
+              <p className="shrink-0 px-3 pb-2 font-mono text-xs text-danger">{uploadError}</p>
+            )}
+          </div>
+        </div>
+        {imageDataUrls.length > 1 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {imageDataUrls.map((url, i) => (
+              <div key={i} className="relative">
+                <img
+                  src={url}
+                  alt=""
+                  className="h-14 w-14 rounded object-cover border border-border"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); removeImageAt(i); }}
+                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-[10px] text-white"
+                  aria-label="Remove photo"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {imagePreviewOpen && imageDataUrls.length > 0 && (
+          <>
+            <div
+              className="fixed inset-0 z-[1102] bg-background/80 backdrop-blur-sm"
+              onClick={() => setImagePreviewOpen(false)}
+              aria-hidden
+            />
+            <div
+              className="fixed inset-0 z-[1103] flex items-center justify-center p-4"
+              onClick={() => setImagePreviewOpen(false)}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Image preview"
+            >
+              <div
+                className="relative max-h-[85vh] max-w-[90vw] overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img
+                  src={imageDataUrls[0]}
+                  alt="Preview"
+                  className="max-h-[85vh] max-w-full object-contain"
+                />
+                <div className="flex flex-wrap gap-2 border-t border-border bg-surface p-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImagePreviewOpen(false);
+                      fileInputRef.current?.click();
+                    }}
+                    className="font-mono touch-target min-h-[40px] px-3 text-sm text-accent underline-offset-2 hover:underline"
+                  >
+                    Add more photos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImagePreviewOpen(false)}
+                    className="font-mono touch-target min-h-[40px] px-3 text-sm text-text-secondary hover:text-text-primary"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
         <NotionNotesEditor value={notes} onChange={setNotes} />
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -581,7 +590,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         key={showDeleteConfirm ? 'open' : 'closed'}
         open={showDeleteConfirm}
         title="Delete memory"
-        message={editingMemory ? `Delete "${editingMemory.title || 'Untitled'}" from the atlas?` : ''}
+        message={editingMemory ? `Delete "${memoryNoteDisplayName(editingMemory)}" from the atlas?` : ''}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         danger

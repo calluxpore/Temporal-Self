@@ -241,6 +241,13 @@ body,
   transform: scale(1.3);
 }
 
+.memory-marker.search-hit .marker-dot {
+  box-shadow:
+    0 0 0 3px var(--color-background),
+    0 0 0 5px var(--color-accent),
+    0 0 18px 6px var(--color-accent-glow);
+}
+
 .marker-tooltip {
   position: absolute;
   left: 50%;

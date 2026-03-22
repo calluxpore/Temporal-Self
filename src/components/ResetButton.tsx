@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMemoryStore } from '../store/memoryStore';
+import { clearVaultRootDirectoryHandle } from '../utils/idbStorage';
 import { ConfirmDialog } from './ConfirmDialog';
 
 type TopControlVariant = 'fixed' | 'bar';
@@ -64,6 +65,7 @@ export function ResetButton({ variant = 'fixed' }: { variant?: TopControlVariant
         zIndex={1300}
         onConfirm={() => {
           resetAllData();
+          void clearVaultRootDirectoryHandle();
           setPendingReset(false);
         }}
         onCancel={() => setPendingReset(false)}

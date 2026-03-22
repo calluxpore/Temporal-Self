@@ -5,14 +5,24 @@
 
 const DB_NAME = 'memory-atlas-db';
 const STORE_NAME = 'persist';
+const HANDLES_STORE = 'handles';
+export const VAULT_ROOT_HANDLE_KEY = 'vault-root-directory';
+
+const DB_VERSION = 2;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error);
     req.onsuccess = () => resolve(req.result);
-    req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE_NAME, { keyPath: 'key' });
+    req.onupgradeneeded = (event) => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'key' });
+      }
+      if (event.oldVersion < 2 && !db.objectStoreNames.contains(HANDLES_STORE)) {
+        db.createObjectStore(HANDLES_STORE);
+      }
     };
   });
 }
@@ -106,3 +116,43 @@ export const idbStorage: StateStorage = {
   setItem: (name: string, value: string): Promise<void> => setItemInIdb(name, value),
   removeItem: (name: string): Promise<void> => removeItemFromIdb(name),
 };
+
+/** Persist File System Access API directory handle (Chromium) for vault sync. */
+export async function saveVaultRootDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLES_STORE, 'readwrite');
+    const store = tx.objectStore(HANDLES_STORE);
+    const req = store.put(handle, VAULT_ROOT_HANDLE_KEY);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
+export async function getVaultRootDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLES_STORE, 'readonly');
+    const store = tx.objectStore(HANDLES_STORE);
+    const req = store.get(VAULT_ROOT_HANDLE_KEY);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const v = req.result;
+      resolve(v && typeof v === 'object' ? (v as FileSystemDirectoryHandle) : null);
+    };
+    tx.oncomplete = () => db.close();
+  });
+}
+
+export async function clearVaultRootDirectoryHandle(): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLES_STORE, 'readwrite');
+    const store = tx.objectStore(HANDLES_STORE);
+    const req = store.delete(VAULT_ROOT_HANDLE_KEY);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}

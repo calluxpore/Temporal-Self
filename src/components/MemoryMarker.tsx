@@ -2,6 +2,7 @@ import { useRef, useMemo } from 'react';
 import { Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { Memory } from '../types/memory';
+import { memoryNoteDisplayName } from '../utils/vaultMarkdown';
 import { useMemoryStore } from '../store/memoryStore';
 
 function escapeHtml(s: string): string {
@@ -17,14 +18,16 @@ function createMarkerIcon(
   memory: Memory,
   isActive: boolean,
   label: string | undefined,
-  routeRole?: 'start' | 'end'
+  routeRole?: 'start' | 'end',
+  searchHit?: boolean
 ) {
   const roleClass = routeRole === 'start' ? 'route-start' : routeRole === 'end' ? 'route-end' : '';
+  const hitClass = searchHit ? 'search-hit' : '';
   const markerInner = `
-    <div class="memory-marker ${isActive ? 'active' : ''} ${roleClass}" data-memory-id="${memory.id}">
+    <div class="memory-marker ${isActive ? 'active' : ''} ${hitClass} ${roleClass}" data-memory-id="${memory.id}">
       ${isActive ? '<div class="marker-pulse-ring"></div>' : ''}
-      <div class="marker-dot" title="${escapeHtml(memory.title)}"></div>
-      <div class="marker-tooltip">${escapeHtml(memory.title)}</div>
+      <div class="marker-dot" title="${escapeHtml(memoryNoteDisplayName(memory))}"></div>
+      <div class="marker-tooltip">${escapeHtml(memoryNoteDisplayName(memory))}</div>
     </div>
   `;
   const hasLabel = label != null && label !== '';
@@ -52,16 +55,26 @@ interface MemoryMarkerProps {
   onMouseOut?: () => void;
   /** Called when the marker is clicked (e.g. to open edit). */
   onClick?: (memory: Memory) => void;
+  /** Highlight when memory matches an active archive search. */
+  searchHit?: boolean;
 }
 
-export function MemoryMarker({ memory, label, routeRole, onMouseOver, onMouseOut, onClick }: MemoryMarkerProps) {
+export function MemoryMarker({
+  memory,
+  label,
+  routeRole,
+  onMouseOver,
+  onMouseOut,
+  onClick,
+  searchHit = false,
+}: MemoryMarkerProps) {
   const map = useMap();
   const markerRef = useRef<L.Marker>(null);
   const isActive = useMemoryStore((s) => s.selectedMemoryId === memory.id);
 
   const icon = useMemo(
-    () => createMarkerIcon(memory, isActive, label, routeRole),
-    [memory, isActive, label, routeRole]
+    () => createMarkerIcon(memory, isActive, label, routeRole, searchHit),
+    [memory, isActive, label, routeRole, searchHit]
   );
 
   const handleClick = (e: L.LeafletMouseEvent) => {
@@ -80,7 +93,7 @@ export function MemoryMarker({ memory, label, routeRole, onMouseOver, onMouseOut
         mouseover: (e) => onMouseOver?.(memory, e.containerPoint),
         mouseout: () => onMouseOut?.(),
       }}
-      zIndexOffset={isActive ? 1000 : 0}
+      zIndexOffset={isActive ? 1000 : searchHit ? 500 : 0}
     />
   );
 }

@@ -1,4 +1,5 @@
 import type { Memory, Group } from '../types/memory';
+import { memoryNoteDisplayName } from './vaultMarkdown';
 
 export type SortBy = 'default' | 'date' | 'title' | 'location' | 'createdAt';
 
@@ -14,7 +15,10 @@ function compareDate(a: Memory, b: Memory): number {
   return a.date.localeCompare(b.date) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 }
 function compareTitle(a: Memory, b: Memory): number {
-  return (a.title || '').localeCompare(b.title || '') || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  return (
+    memoryNoteDisplayName(a).localeCompare(memoryNoteDisplayName(b)) ||
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
 }
 function compareLocation(a: Memory, b: Memory): number {
   if (a.lat !== b.lat) return a.lat - b.lat;

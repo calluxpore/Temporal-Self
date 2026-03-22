@@ -5,6 +5,7 @@ import { useMemoryStore } from '../store/memoryStore';
 import { exportToJson, exportToCsv, importFromJson, importFromCsv } from '../utils/exportImport';
 import { generateReportPdf, reportFilename } from '../utils/generateReport';
 import { ConfirmDialog } from './ConfirmDialog';
+import { SettingsButton } from './SettingsButton';
 import type { Memory, Group } from '../types/memory';
 import type { StudyEvent } from '../types/study';
 
@@ -614,6 +615,8 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
         <span className={tooltipClass}>Report</span>
       </div>
 
+      <SettingsButton variant={variant} />
+
       {/* Contact: round button — opens samreddy.work in new tab */}
       <div
         className={variant === 'bar' ? 'relative z-[1100] group flex-shrink-0' : 'fixed z-[1100] group'}
@@ -621,7 +624,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           variant === 'bar'
             ? undefined
             : {
-                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 672px)',
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 728px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
               }

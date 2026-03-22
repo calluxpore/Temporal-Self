@@ -91,6 +91,23 @@ interface MemoryState {
   logStudyDateFilterChanged: (from: string | null, to: string | null) => void;
   /** When true, delete actions run without confirmation dialog. */
   skipDeleteConfirmation: boolean;
+  /** Absolute path to vault root (Electron). Browser uses IndexedDB-stored directory handle. */
+  vaultElectronPath: string | null;
+  vaultLastSyncAt: string | null;
+  vaultLastSyncError: string | null;
+  setVaultElectronPath: (path: string | null) => void;
+  setVaultLastSyncMeta: (at: string | null, error: string | null) => void;
+  /** Right-edge settings drawer (same pattern as editing a memory). */
+  settingsDrawerOpen: boolean;
+  setSettingsDrawerOpen: (open: boolean) => void;
+  /** Search memories (title, notes, tags, links, coords, group name, …) — right drawer + map highlights. */
+  memorySearchDrawerOpen: boolean;
+  memorySearchMatchIds: string[] | null;
+  setMemorySearchDrawerOpen: (open: boolean) => void;
+  setMemorySearchMatchIds: (ids: string[] | null) => void;
+  /** Bumped when vault folder is linked or cleared so disk writes pick up the change. */
+  vaultLinkNonce: number;
+  bumpVaultLinkNonce: () => void;
   setSkipDeleteConfirmation: (value: boolean) => void;
   setMemories: (memories: Memory[]) => void;
   setGroups: (groups: Group[]) => void;
@@ -106,6 +123,8 @@ interface MemoryState {
   /** Update a memory without pushing an undo snapshot (use for live dragging). */
   updateMemoryWithoutUndo: (id: string, updates: Partial<Memory>) => void;
   removeMemory: (id: string) => void;
+  /** Drop memories because their vault `.md` files were removed externally (no undo). */
+  removeMemoriesVaultMirror: (ids: string[]) => void;
   setSelectedMemory: (memory: Memory | null) => void;
   setCardTargetMemoryId: (id: string | null) => void;
   setEditingMemory: (memory: Memory | null) => void;
@@ -210,6 +229,29 @@ export const useMemoryStore = create<MemoryState>()(
       studyCheckpointCompletedByParticipant: {},
       studyEvents: [],
       skipDeleteConfirmation: false,
+      vaultElectronPath: null,
+      vaultLastSyncAt: null,
+      vaultLastSyncError: null,
+      settingsDrawerOpen: false,
+      memorySearchDrawerOpen: false,
+      memorySearchMatchIds: null,
+      vaultLinkNonce: 0,
+
+      setVaultElectronPath: (vaultElectronPath) => set({ vaultElectronPath }),
+      setVaultLastSyncMeta: (vaultLastSyncAt, vaultLastSyncError) =>
+        set({ vaultLastSyncAt, vaultLastSyncError }),
+      setSettingsDrawerOpen: (open) =>
+        set({
+          settingsDrawerOpen: open,
+          ...(open ? { memorySearchDrawerOpen: false, memorySearchMatchIds: null } : {}),
+        }),
+      setMemorySearchDrawerOpen: (open) =>
+        set({
+          memorySearchDrawerOpen: open,
+          ...(!open ? { memorySearchMatchIds: null } : {}),
+        }),
+      setMemorySearchMatchIds: (memorySearchMatchIds) => set({ memorySearchMatchIds }),
+      bumpVaultLinkNonce: () => set((s) => ({ vaultLinkNonce: s.vaultLinkNonce + 1 })),
 
       setRecallModalMemoryId: (id) => set({ recallModalMemoryId: id }),
       setRecallSessionQueue: (recallSessionQueue) => set({ recallSessionQueue }),
@@ -455,6 +497,35 @@ export const useMemoryStore = create<MemoryState>()(
           selectedMemoryId: state.selectedMemoryId === id ? null : state.selectedMemoryId,
         })),
 
+      removeMemoriesVaultMirror: (ids) => {
+        const idSet = new Set(ids);
+        if (idSet.size === 0) return;
+        set((state) => {
+          const nextMemories = state.memories.filter((m) => !idSet.has(m.id));
+          if (nextMemories.length === state.memories.length) return state;
+          const nextSearch =
+            state.memorySearchMatchIds?.filter((x) => !idSet.has(x)) ?? null;
+          return {
+            memories: nextMemories,
+            selectedMemoryId:
+              state.selectedMemoryId && idSet.has(state.selectedMemoryId) ? null : state.selectedMemoryId,
+            editingMemory:
+              state.editingMemory && idSet.has(state.editingMemory.id) ? null : state.editingMemory,
+            cardTargetMemoryId:
+              state.cardTargetMemoryId && idSet.has(state.cardTargetMemoryId)
+                ? null
+                : state.cardTargetMemoryId,
+            selectedMemoryIds: state.selectedMemoryIds.filter((x) => !idSet.has(x)),
+            recallModalMemoryId:
+              state.recallModalMemoryId && idSet.has(state.recallModalMemoryId)
+                ? null
+                : state.recallModalMemoryId,
+            recallSessionQueue: state.recallSessionQueue.filter((x) => !idSet.has(x)),
+            memorySearchMatchIds: nextSearch?.length ? nextSearch : null,
+          };
+        });
+      },
+
       setSelectedMemory: (memory) =>
         set({ selectedMemoryId: memory?.id ?? null }),
 
@@ -592,7 +663,7 @@ export const useMemoryStore = create<MemoryState>()(
         }),
 
       resetAllData: () =>
-        set({
+        set((state) => ({
           memories: [],
           groups: [],
           selectedMemoryId: null,
@@ -612,11 +683,18 @@ export const useMemoryStore = create<MemoryState>()(
           studyEvents: [],
           undoStack: [],
           redoStack: [],
-        }),
+          vaultElectronPath: null,
+          vaultLastSyncAt: null,
+          vaultLastSyncError: null,
+          settingsDrawerOpen: false,
+          memorySearchDrawerOpen: false,
+          memorySearchMatchIds: null,
+          vaultLinkNonce: state.vaultLinkNonce + 1,
+        })),
     }),
     {
       name: 'memory-atlas-storage',
-      version: 7,
+      version: 9,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         mapView: state.mapView,
@@ -633,44 +711,55 @@ export const useMemoryStore = create<MemoryState>()(
         studyCheckpointTag: state.studyCheckpointTag,
         studyCheckpointCompletedByParticipant: state.studyCheckpointCompletedByParticipant,
         studyEvents: state.studyEvents,
+        vaultElectronPath: state.vaultElectronPath,
+        vaultLastSyncAt: state.vaultLastSyncAt,
       }),
       migrate: (persisted: unknown, version: number) => {
+        const withVault = (x: Record<string, unknown>): Record<string, unknown> => {
+          const rest = { ...x };
+          delete rest.vaultSyncEnabled;
+          return {
+            ...rest,
+            vaultElectronPath: typeof rest.vaultElectronPath === 'string' ? rest.vaultElectronPath : null,
+            vaultLastSyncAt: typeof rest.vaultLastSyncAt === 'string' ? rest.vaultLastSyncAt : null,
+          };
+        };
         if (persisted == null || typeof persisted !== 'object') return persisted as Record<string, unknown>;
         const p = persisted as Record<string, unknown>;
         if (version < 1) {
-          return {
+          return withVault({
             ...p,
             memories: Array.isArray(p.memories) ? p.memories : [],
             groups: Array.isArray(p.groups) ? p.groups : [],
             theme: p.theme === 'light' ? 'light' : 'dark',
             defaultGroupId: p.defaultGroupId ?? null,
             sidebarWidth: 320,
-          } as Record<string, unknown>;
+          });
         }
         if (version < 2 && p.sidebarWidth == null) {
-          return { ...p, sidebarWidth: 320 } as Record<string, unknown>;
+          return withVault({ ...p, sidebarWidth: 320 });
         }
         if (version < 3 && p.skipDeleteConfirmation == null) {
-          return { ...p, skipDeleteConfirmation: false } as Record<string, unknown>;
+          return withVault({ ...p, skipDeleteConfirmation: false });
         }
         if (version < 4 && p.recallSessions == null) {
-          return { ...p, recallSessions: [] } as Record<string, unknown>;
+          return withVault({ ...p, recallSessions: [] });
         }
         if (version < 5) {
-          return {
+          return withVault({
             ...p,
             mapView: p.mapView ?? null,
             hasChosenStartLocation: p.hasChosenStartLocation ?? false,
-          } as Record<string, unknown>;
+          });
         }
         if (version < 6) {
-          return {
+          return withVault({
             ...p,
             studyParticipantId: p.studyParticipantId ?? null,
             studyCheckpointTag: p.studyCheckpointTag ?? null,
             studyCheckpointCompletedAt: p.studyCheckpointCompletedAt ?? {},
             studyEvents: Array.isArray(p.studyEvents) ? p.studyEvents : [],
-          } as Record<string, unknown>;
+          });
         }
         if (version < 7) {
           const legacy =
@@ -689,7 +778,7 @@ export const useMemoryStore = create<MemoryState>()(
                 >)
               : null;
           if (existing) {
-            return { ...p, studyCheckpointCompletedByParticipant: existing } as Record<string, unknown>;
+            return withVault({ ...p, studyCheckpointCompletedByParticipant: existing });
           }
           const pid =
             typeof p.studyParticipantId === 'string' && p.studyParticipantId.trim()
@@ -698,9 +787,14 @@ export const useMemoryStore = create<MemoryState>()(
           const byParticipant: Record<string, Partial<Record<StudyCheckpointTag, string>>> = legacy
             ? { [pid]: legacy }
             : {};
-          return { ...p, studyCheckpointCompletedByParticipant: byParticipant } as Record<string, unknown>;
+          return withVault({ ...p, studyCheckpointCompletedByParticipant: byParticipant });
         }
-        return persisted as Record<string, unknown>;
+        if (version < 9) {
+          const copy = { ...p };
+          delete copy.vaultSyncEnabled;
+          return withVault(copy);
+        }
+        return withVault(p);
       },
     }
   )
