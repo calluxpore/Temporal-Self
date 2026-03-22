@@ -45,14 +45,6 @@ export function vaultTitledFileStem(title: string): string {
   return safe.length > 0 ? safe : 'memory';
 }
 
-/**
- * For titled notes: exact vault file name (`.md`) that would be used. Null for untitled (depends on id).
- */
-export function projectedTitledVaultFilename(title: string): string | null {
-  if (isUntitledVaultTitle(title)) return null;
-  return `${vaultTitledFileStem(title)}.md`;
-}
-
 /** Error message if title cannot be used as a vault file name; null if OK. */
 export function vaultTitleFilenameError(title: string): string | null {
   if (isUntitledVaultTitle(title)) return null;
@@ -64,23 +56,24 @@ export function vaultTitleFilenameError(title: string): string | null {
 }
 
 /**
- * Vault `.md` file name: titled notes use the exact title (sanitized for `<>:"/\\|?*` only);
- * untitled uses `untitled-<uuid>.md`. Memory id lives in YAML only for titled files.
+ * Vault `.md` file name: always includes the memory id so two notes with the same title
+ * never overwrite the same file (that used to drop one memory from the app after sync).
+ * Titled: `Title-<uuid>.md`; untitled: `untitled-<uuid>.md`.
  */
 export function vaultMemoryFilename(memory: Memory): string {
+  const id = memory.id;
   if (isUntitledVaultTitle(memory.title)) {
-    return `untitled-${memory.id}.md`;
+    return `untitled-${id}.md`;
   }
-  return `${vaultTitledFileStem(memory.title)}.md`;
+  return `${vaultTitledFileStem(memory.title)}-${id}.md`;
 }
 
 /**
- * Label in lists/cards — matches the vault file stem (without `.md`).
+ * Label in lists/cards — human title (not the vault file name, which includes the id).
  */
 export function memoryNoteDisplayName(memory: Memory): string {
-  const name = vaultMemoryFilename(memory);
   if (isUntitledVaultTitle(memory.title)) return 'Untitled';
-  return name.replace(/\.md$/i, '');
+  return vaultTitledFileStem(memory.title);
 }
 
 function yamlScalar(v: string | number | boolean | null | undefined): string {
@@ -158,7 +151,7 @@ export const VAULT_README = `# Temporal Self folder
 
 This folder is written by **Temporal Self**. It is safe to browse and edit notes in Obsidian; the app keeps its own copy in the browser (IndexedDB) and **re-syncs** markdown from the app on change. While a vault folder is linked, **deleting a memory note here** (or in Explorer) removes that memory from the app after a short refresh—same idea as deleting a note in Obsidian.
 
-- \`memories/\` — one \`.md\` file per memory (YAML front matter includes \`id\`). The file name matches the **title** (illegal path characters removed). Empty or \`Untitled\` titles use \`untitled-<id>.md\`; the app will not save two titled memories with the same file name.
+- \`memories/\` — one \`.md\` file per memory (YAML front matter includes \`id\`). Titled notes use \`Title-<id>.md\` (title sanitized for illegal path characters); \`Untitled\` uses \`untitled-<id>.md\`. The id in the file name keeps duplicate titles from colliding on disk.
 - \`attachments/<memory-id>/\` — photos exported from the app.
 - \`groups.json\` — group names and ids (edit with care; prefer changing groups in the app).
 

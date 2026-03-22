@@ -86,20 +86,18 @@ export async function runVaultReconcileFromDisk(): Promise<void> {
   const current = new Set(diskIds);
   const prev = readPrevIds(key);
 
-  if (
-    prev.size === 0 &&
-    current.size === 0 &&
-    st.memories.length > 0 &&
-    st.vaultLastSyncAt &&
-    !st.vaultLastSyncError
-  ) {
-    writePrevIds(key, current);
-    useMemoryStore.getState().removeMemoriesVaultMirror(st.memories.map((m) => m.id));
-    return;
-  }
+  // Do NOT mass-delete when the folder is empty: new notes often have no `.md` on disk until the
+  // next vault sync (debounced). Empty disk + vaultLastSyncAt would wrongly wipe the whole atlas.
 
   if (prev.size === 0 && current.size > 0) {
     writePrevIds(key, current);
+    return;
+  }
+
+  // Empty id list from disk: do not reconcile-remove. Cloud/OneDrive placeholders or a bad
+  // read can look like "everything deleted" and would wipe the in-app atlas.
+  if (current.size === 0) {
+    if (prev.size === 0) writePrevIds(key, current);
     return;
   }
 
@@ -114,10 +112,24 @@ export async function runVaultReconcileFromDisk(): Promise<void> {
   }
 }
 
-/** After a successful push to disk, disk ids match app — reset baseline without waiting for a directory scan. */
-export function onVaultPushSucceeded(memoryIds: string[]): void {
+/**
+ * Re-read which memory ids exist on disk and store that as the reconcile baseline.
+ * Must be based on actual files — never on the in-app list — or a slow/cloud drive can list
+ * incompletely right after sync and the next reconcile would drop memories still in the atlas.
+ */
+export async function refreshVaultDiskBaselineFromDisk(): Promise<void> {
   const key = vaultReconcileSessionKey();
   if (!key || typeof sessionStorage === 'undefined') return;
-  const s = new Set(memoryIds.map((id) => id.toLowerCase()));
-  writePrevIds(key, s);
+  const st = useMemoryStore.getState();
+  const diskIds = await listVaultMemoryIdsOnDisk(st.vaultElectronPath);
+  if (diskIds === null) return;
+  writePrevIds(key, new Set(diskIds.map((x) => String(x).toLowerCase())));
+}
+
+/** Call after vault sync succeeds; delayed so new `.md` files are visible to directory reads. */
+export function scheduleVaultDiskBaselineRefresh(): void {
+  if (typeof window === 'undefined') return;
+  window.setTimeout(() => {
+    void refreshVaultDiskBaselineFromDisk();
+  }, 550);
 }

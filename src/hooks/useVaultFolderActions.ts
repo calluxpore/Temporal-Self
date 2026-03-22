@@ -5,7 +5,7 @@ import {
   getVaultRootDirectoryHandle,
   saveVaultRootDirectoryHandle,
 } from '../utils/idbStorage';
-import { runVaultSyncForMemories } from '../utils/vaultSyncRunner';
+import { awaitVaultSyncChain, enqueueVaultDiskSync } from '../utils/vaultSyncExecution';
 import { resetVaultReconcileTracking } from '../utils/vaultReconcile';
 
 /**
@@ -47,18 +47,16 @@ export function useVaultFolderActions(active: boolean) {
     setLocalError(null);
     setBusy(true);
     try {
-      const st = useMemoryStore.getState();
-      const res = await runVaultSyncForMemories(st.memories, st.groups, {
-        electronVaultPath: st.vaultElectronPath,
-      });
-      if (res.ok) setVaultLastSyncMeta(new Date().toISOString(), null);
-      else setVaultLastSyncMeta(st.vaultLastSyncAt, res.error);
+      enqueueVaultDiskSync();
+      await awaitVaultSyncChain();
+      const err = useMemoryStore.getState().vaultLastSyncError;
+      if (err) setLocalError(err);
     } catch (e) {
       setLocalError(e instanceof Error ? e.message : 'Could not save to folder');
     } finally {
       setBusy(false);
     }
-  }, [setVaultLastSyncMeta]);
+  }, []);
 
   const chooseElectronFolder = useCallback(async () => {
     setLocalError(null);

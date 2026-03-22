@@ -1,13 +1,10 @@
 import { useEffect, useRef } from 'react';
 import type { Group, Memory } from '../types/memory';
 import { useMemoryStore } from '../store/memoryStore';
-import { getVaultRootDirectoryHandle } from '../utils/idbStorage';
-import { runVaultSyncForMemories } from '../utils/vaultSyncRunner';
+import { enqueueVaultDiskSync } from '../utils/vaultSyncExecution';
 import {
-  onVaultPushSucceeded,
   resetVaultReconcileTracking,
   runVaultReconcileFromDisk,
-  suppressVaultReconcile,
 } from '../utils/vaultReconcile';
 
 /** After edits to titles/notes/body (same memory ids on disk). */
@@ -40,28 +37,8 @@ function groupIdsKey(groups: Group[]): string {
     .join('|');
 }
 
-async function syncVaultToDisk(): Promise<void> {
-  suppressVaultReconcile(950);
-  const isElectronVault = typeof window !== 'undefined' && !!window.temporalVault?.applySync;
-  const st = useMemoryStore.getState();
-  if (isElectronVault) {
-    if (!st.vaultElectronPath?.trim()) return;
-  } else {
-    const h = await getVaultRootDirectoryHandle();
-    if (!h) return;
-  }
-
-  const res = await runVaultSyncForMemories(st.memories, st.groups, {
-    electronVaultPath: st.vaultElectronPath,
-  });
-  const setMeta = useMemoryStore.getState().setVaultLastSyncMeta;
-  const st2 = useMemoryStore.getState();
-  if (res.ok) {
-    setMeta(new Date().toISOString(), null);
-    onVaultPushSucceeded(st2.memories.map((m) => m.id));
-  } else {
-    setMeta(st.vaultLastSyncAt, res.error);
-  }
+function syncVaultToDisk(): void {
+  enqueueVaultDiskSync();
 }
 
 /**

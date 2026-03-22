@@ -12,7 +12,6 @@ import type { Memory, PendingLatLng } from '../types/memory';
 import { NotionNotesEditor } from './NotionNotesEditor';
 import { parseNotesFrontMatter, serializeNotesFrontMatter } from '../utils/notesFrontMatter';
 import { memoryNoteDisplayName, vaultTitleFilenameError } from '../utils/vaultMarkdown';
-import { findVaultFilenameConflict, vaultDuplicateFilenameMessage } from '../utils/vaultFilenameConflict';
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -87,7 +86,6 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const groups = useMemoryStore((s) => s.groups);
-  const memories = useMemoryStore((s) => s.memories);
   const { location } = useReverseGeocode(effectiveLat, effectiveLng);
   const locationForYaml = location ?? notesFrontMatterInitial.location ?? formatCoords(effectiveLat, effectiveLng);
 
@@ -141,12 +139,6 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
       setVaultTitleError(reservedErr);
       return;
     }
-    const dup = findVaultFilenameConflict(memories, titleToSave, editingMemory?.id ?? null);
-    if (dup) {
-      setVaultTitleError(vaultDuplicateFilenameMessage(dup));
-      return;
-    }
-
     const chosenGroupId = groupId || null;
     const firstImage = imageDataUrls[0] ?? null;
     const parsed = parseNotesFrontMatter(notes);

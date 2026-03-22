@@ -10,11 +10,14 @@ let memoriesWatcher = null;
 let memoriesWatchDebounce = null;
 let memoriesWatchSender = null;
 
-function extractTemporalSelfMemoryIdFromFile(fullPath) {
+/** Match renderer `extractTemporalSelfMemoryId`: `---` + `id:` uuid near top only (no temporal-self / lat gate). */
+function extractVaultMemoryIdFromMarkdownFile(fullPath) {
   try {
-    const raw = fs.readFileSync(fullPath, 'utf8').slice(0, 4000);
-    if (!/temporal-self:\s*["']?1["']?/i.test(raw)) return null;
-    const m = raw.match(/\bid:\s*"?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"?/i);
+    let raw = fs.readFileSync(fullPath, 'utf8').slice(0, 24000);
+    raw = raw.replace(/^\uFEFF/, '');
+    raw = raw.replace(/^\s+/, '');
+    if (!/^---\r?\n/.test(raw)) return null;
+    const m = /\bid:\s*["'`\u201c\u201d\u2018\u2019]*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(raw);
     return m ? m[1].toLowerCase() : null;
   } catch {
     return null;
@@ -43,7 +46,7 @@ function cleanupStaleMemoryMarkdownRenames(rootResolved, activeMemoryIds, canoni
   for (const name of fs.readdirSync(dir)) {
     if (!name.endsWith('.md')) continue;
     const full = path.join(dir, name);
-    const id = extractTemporalSelfMemoryIdFromFile(full);
+    const id = extractVaultMemoryIdFromMarkdownFile(full);
     if (!id || !active.has(id)) continue;
     if (!keep.has(name.toLowerCase())) {
       try {
@@ -62,7 +65,7 @@ function cleanupMemoriesMarkdown(rootResolved, activeMemoryIds) {
   for (const name of fs.readdirSync(dir)) {
     if (!name.endsWith('.md')) continue;
     const full = path.join(dir, name);
-    const id = extractTemporalSelfMemoryIdFromFile(full);
+    const id = extractVaultMemoryIdFromMarkdownFile(full);
     if (!id) continue;
     if (!set.has(id)) {
       try {
@@ -81,7 +84,7 @@ function listMemoryIdsFromVaultDir(rootResolved) {
   const out = [];
   for (const name of fs.readdirSync(dir)) {
     if (!name.endsWith('.md')) continue;
-    const id = extractTemporalSelfMemoryIdFromFile(path.join(dir, name));
+    const id = extractVaultMemoryIdFromMarkdownFile(path.join(dir, name));
     if (id && !seen.has(id)) {
       seen.add(id);
       out.push(id);
