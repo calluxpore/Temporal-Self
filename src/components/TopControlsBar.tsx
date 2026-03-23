@@ -15,14 +15,14 @@ export function TopControlsBar() {
 
   return (
     <div
-      className="pointer-events-none fixed z-[950] -translate-x-1/2 transition-[left] duration-300 overflow-hidden max-w-[100vw]"
+      className="pointer-events-none fixed z-[950] -translate-x-1/2 transition-[left] duration-300 overflow-visible max-w-[100vw]"
       style={{
         left,
         top: 'max(24px, env(safe-area-inset-top, 0px))',
       }}
     >
       {/* Only enable pointer events on the actual button group, not the entire top bar area. */}
-      <div className="pointer-events-auto inline-flex max-w-[100vw] flex-nowrap items-center justify-center gap-2 px-3 pt-3 overflow-hidden">
+      <div className="pointer-events-auto inline-flex max-w-[100vw] flex-nowrap items-center justify-center gap-2 px-3 pt-3 overflow-visible">
         <ThemeToggle variant="bar" />
         <RecallButton variant="bar" />
         <ResetButton variant="bar" />

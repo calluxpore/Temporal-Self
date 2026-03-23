@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { useMemoryStore } from '../store/memoryStore';
 import { useMapRef } from '../context/mapContextState';
+import { useIsMd } from '../hooks/useMediaQuery';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { flyToBoundsChromePadding, flyToPointClearingMemorySearchDock } from '../utils/mapSearchChrome';
 import { filterMemoriesByTextQuery, normalizeSearchTokens } from '../utils/memoryTextSearch';
 import { formatCoords } from '../utils/formatCoords';
 import { formatDate } from '../utils/formatDate';
@@ -170,9 +172,11 @@ export function MemorySearchDrawer() {
   const memories = useMemoryStore((s) => s.memories);
   const groups = useMemoryStore((s) => s.groups);
   const setCardTargetMemoryId = useMemoryStore((s) => s.setCardTargetMemoryId);
-  const setSearchHighlight = useMemoryStore((s) => s.setSearchHighlight);
+  const sidebarOpen = useMemoryStore((s) => s.sidebarOpen);
+  const sidebarWidth = useMemoryStore((s) => s.sidebarWidth);
 
   const map = useMapRef();
+  const isMd = useIsMd();
   const [active, setActive] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -222,25 +226,42 @@ export function MemorySearchDrawer() {
     [debouncedQuery, memories, groups]
   );
 
+  const mapChrome = useCallback(
+    () => ({
+      viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
+      isMd,
+      sidebarOpen,
+      sidebarWidth,
+    }),
+    [isMd, sidebarOpen, sidebarWidth]
+  );
+
   const fitAllOnMap = useCallback(() => {
     if (!map || results.length === 0) return;
+    const chrome = mapChrome();
     if (results.length === 1) {
-      map.flyTo([results[0].lat, results[0].lng], 15, { duration: 0.55 });
+      flyToPointClearingMemorySearchDock(map, results[0].lat, results[0].lng, chrome, {
+        maxZoom: 15,
+        duration: 0.55,
+      });
       return;
     }
     const bounds = L.latLngBounds(results.map((m) => [m.lat, m.lng] as L.LatLngTuple));
-    map.flyToBounds(bounds, { padding: [56, 56], duration: 0.55, maxZoom: 15 });
-  }, [map, results]);
+    const pad = flyToBoundsChromePadding(chrome);
+    map.flyToBounds(bounds, { ...pad, duration: 0.55, maxZoom: 15 });
+  }, [map, results, mapChrome]);
 
   const goToMemory = useCallback(
     (memory: Memory) => {
-      setSearchHighlight({ type: 'point', lat: memory.lat, lng: memory.lng });
       setCardTargetMemoryId(memory.id);
       if (map) {
-        map.flyTo([memory.lat, memory.lng], 17, { duration: 0.5 });
+        flyToPointClearingMemorySearchDock(map, memory.lat, memory.lng, mapChrome(), {
+          maxZoom: 17,
+          duration: 0.5,
+        });
       }
     },
-    [map, setCardTargetMemoryId, setSearchHighlight]
+    [map, mapChrome, setCardTargetMemoryId]
   );
 
   if (!open) return null;
@@ -274,7 +295,8 @@ export function MemorySearchDrawer() {
               <h2 className="font-display text-xl font-semibold text-text-primary md:text-2xl">Search memories</h2>
               <p className="mt-1 font-mono text-xs text-text-muted">
                 Title, notes, tags, links, dates, coordinates, group name. Words must be at least 2 letters/digits
-                (or one non‑Latin character); space means every word must match.
+                (or one non‑Latin character); space means every word must match. While this panel is open, the map
+                keeps pins in the area left of the drawer so you can click them; click empty map to close search.
               </p>
             </div>
             <button

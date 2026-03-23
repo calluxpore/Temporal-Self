@@ -1,12 +1,13 @@
 import type { Group, Memory } from '../types/memory';
 import { memoryToVaultMarkdown, collectMemoryImagePaths, vaultMemoryFilename, VAULT_README } from './vaultMarkdown';
 import { vaultRelative } from './vaultPaths';
+import type { VaultSettings } from './vaultSettings';
 
 export type VaultFileWrite =
   | { path: string; kind: 'utf8'; content: string }
   | { path: string; kind: 'binary'; bytes: Uint8Array };
 
-export function buildVaultSyncPlan(memories: Memory[], groups: Group[]): {
+export function buildVaultSyncPlan(memories: Memory[], groups: Group[], settings: VaultSettings): {
   writes: VaultFileWrite[];
   activeMemoryIds: string[];
   /** Basenames under `memories/` — used to remove old filenames after title changes. */
@@ -26,6 +27,11 @@ export function buildVaultSyncPlan(memories: Memory[], groups: Group[]): {
     path: vaultRelative.groupsJson,
     kind: 'utf8',
     content: `${JSON.stringify(groups, null, 2)}\n`,
+  });
+  writes.push({
+    path: vaultRelative.settingsJson,
+    kind: 'utf8',
+    content: `${JSON.stringify(settings, null, 2)}\n`,
   });
 
   for (const m of memories) {

@@ -2,10 +2,12 @@ import { useEffect, useRef } from 'react';
 import type { Group, Memory } from '../types/memory';
 import { useMemoryStore } from '../store/memoryStore';
 import { enqueueVaultDiskSync } from '../utils/vaultSyncExecution';
+import { buildVaultSettingsFromState } from '../utils/vaultSettings';
 import {
   resetVaultReconcileTracking,
   runVaultReconcileFromDisk,
 } from '../utils/vaultReconcile';
+import { loadVaultSettingsFromDisk } from '../utils/vaultSyncRunner';
 
 /** After edits to titles/notes/body (same memory ids on disk). */
 const DEBOUNCE_CONTENT_MS = 650;
@@ -20,6 +22,7 @@ function pickVaultDeps(s: ReturnType<typeof useMemoryStore.getState>) {
     groups: s.groups,
     vaultElectronPath: s.vaultElectronPath,
     vaultLinkNonce: s.vaultLinkNonce,
+    settingsKey: JSON.stringify(buildVaultSettingsFromState(s)),
   };
 }
 
@@ -76,7 +79,8 @@ export function useVaultSync() {
         next.memories !== prev.memories ||
         next.groups !== prev.groups ||
         next.vaultElectronPath !== prev.vaultElectronPath ||
-        next.vaultLinkNonce !== prev.vaultLinkNonce;
+        next.vaultLinkNonce !== prev.vaultLinkNonce ||
+        next.settingsKey !== prev.settingsKey;
 
       prevRef.current = next;
 
@@ -116,6 +120,56 @@ export function useVaultSync() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    let lastLinkKey = '';
+
+    const loadSettings = async () => {
+      const st = useMemoryStore.getState();
+      const key = `${st.vaultElectronPath ?? ''}|${st.vaultLinkNonce}`;
+      if (key === lastLinkKey) return;
+      lastLinkKey = key;
+
+      const res = await loadVaultSettingsFromDisk({ electronVaultPath: st.vaultElectronPath });
+      if (!res.ok || cancelled || !res.settings) return;
+      const current = useMemoryStore.getState();
+      useMemoryStore.setState({
+        theme: res.settings.theme ?? current.theme,
+        mapView: res.settings.mapView === undefined ? current.mapView : res.settings.mapView,
+        hasChosenStartLocation:
+          res.settings.hasChosenStartLocation ?? current.hasChosenStartLocation,
+        defaultGroupId: res.settings.defaultGroupId === undefined ? current.defaultGroupId : res.settings.defaultGroupId,
+        sidebarWidth: res.settings.sidebarWidth ?? current.sidebarWidth,
+        skipDeleteConfirmation:
+          res.settings.skipDeleteConfirmation ?? current.skipDeleteConfirmation,
+        recallSessions: res.settings.recallSessions ?? current.recallSessions,
+        studyParticipantId:
+          res.settings.studyParticipantId === undefined ? current.studyParticipantId : res.settings.studyParticipantId,
+        studyCheckpointTag:
+          res.settings.studyCheckpointTag === undefined ? current.studyCheckpointTag : res.settings.studyCheckpointTag,
+        studyCheckpointCompletedByParticipant:
+          res.settings.studyCheckpointCompletedByParticipant ?? current.studyCheckpointCompletedByParticipant,
+        studyEvents: res.settings.studyEvents ?? current.studyEvents,
+        timelineEnabled: res.settings.timelineEnabled ?? current.timelineEnabled,
+        timelineLineStyle: res.settings.timelineLineStyle ?? current.timelineLineStyle,
+        filterStarred: res.settings.filterStarred ?? current.filterStarred,
+        sortBy: res.settings.sortBy ?? current.sortBy,
+        sortOrder: res.settings.sortOrder ?? current.sortOrder,
+        dateFilterFrom:
+          res.settings.dateFilterFrom === undefined ? current.dateFilterFrom : res.settings.dateFilterFrom,
+        dateFilterTo:
+          res.settings.dateFilterTo === undefined ? current.dateFilterTo : res.settings.dateFilterTo,
+        heatmapEnabled: res.settings.heatmapEnabled ?? current.heatmapEnabled,
+        markersVisible: res.settings.markersVisible ?? current.markersVisible,
+        sidebarView: res.settings.sidebarView ?? current.sidebarView,
+      });
+    };
+
+    void loadSettings();
+    const unsubLink = useMemoryStore.subscribe((s) => {
+      const key = `${s.vaultElectronPath ?? ''}|${s.vaultLinkNonce}`;
+      if (key !== lastLinkKey) void loadSettings();
+    });
+
     const pollMs = 2600;
     const poll = window.setInterval(() => void runVaultReconcileFromDisk(), pollMs);
     let pathSeen: string | null = null;
@@ -143,6 +197,8 @@ export function useVaultSync() {
     void runVaultReconcileFromDisk();
 
     return () => {
+      cancelled = true;
+      unsubLink();
       window.clearInterval(poll);
       unsub();
       offDirWatch?.();

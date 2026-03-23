@@ -20,6 +20,10 @@ declare global {
         activeMemoryIds: string[],
         memoryMarkdownBasenames: string[]
       ) => Promise<{ ok: true } | { ok: false; error: string }>;
+      readTextFile: (
+        vaultRoot: string,
+        relativePath: string
+      ) => Promise<{ ok: true; text: string | null } | { ok: false; error: string }>;
     };
   }
 }

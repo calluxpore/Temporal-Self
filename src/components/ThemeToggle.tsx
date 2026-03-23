@@ -33,6 +33,7 @@ export function ThemeToggle({ variant = 'fixed' }: { variant?: TopControlVariant
         onClick={toggle}
         className="flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
         aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        title="Theme (Alt+D)"
       >
         {theme === 'dark' ? (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-secondary">
@@ -46,7 +47,7 @@ export function ThemeToggle({ variant = 'fixed' }: { variant?: TopControlVariant
         )}
       </button>
       <span className={tooltipPositionClass}>
-        Theme
+        Theme (Alt+D)
       </span>
     </div>
   );

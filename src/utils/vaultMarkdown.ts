@@ -85,8 +85,14 @@ function yamlScalar(v: string | number | boolean | null | undefined): string {
 
 function yamlStringList(arr: string[] | undefined): string | null {
   if (arr === undefined) return null;
-  if (arr.length === 0) return '[]';
+  if (arr.length === 0) return null;
   return `[${arr.map((x) => yamlQuote(x)).join(', ')}]`;
+}
+
+function normalizeYamlTag(tag: string): string {
+  const t = tag.trim();
+  if (!t) return '';
+  return t.startsWith('#') ? t : `#${t}`;
 }
 
 /**
@@ -96,7 +102,7 @@ function yamlStringList(arr: string[] | undefined): string | null {
 export function memoryToVaultMarkdown(memory: Memory, imageRelPaths: string[]): string {
   const { frontMatter: noteFm, body: noteBody } = parseNotesFrontMatter(memory.notes);
 
-  const tags = memory.tags?.length ? memory.tags : noteFm.tags;
+  const tags = (memory.tags?.length ? memory.tags : noteFm.tags)?.map(normalizeYamlTag).filter(Boolean);
   const links = memory.links?.length ? memory.links : noteFm.links;
 
   const lines: string[] = ['---', 'temporal-self: "1"', `id: ${yamlQuote(memory.id)}`, `title: ${yamlQuote(memory.title)}`];
@@ -154,6 +160,7 @@ This folder is written by **Temporal Self**. It is safe to browse and edit notes
 - \`memories/\` — one \`.md\` file per memory (YAML front matter includes \`id\`). Titled notes use \`Title-<id>.md\` (title sanitized for illegal path characters); \`Untitled\` uses \`untitled-<id>.md\`. The id in the file name keeps duplicate titles from colliding on disk.
 - \`attachments/<memory-id>/\` — photos exported from the app.
 - \`groups.json\` — group names and ids (edit with care; prefer changing groups in the app).
+- \`settings.json\` — app-level preferences (theme, map/timeline toggles, filters, study/session options).
 
 `;
 

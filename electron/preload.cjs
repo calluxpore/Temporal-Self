@@ -12,4 +12,6 @@ contextBridge.exposeInMainWorld('temporalVault', {
   },
   applySync: (vaultRoot, writes, activeMemoryIds, memoryMarkdownBasenames) =>
     ipcRenderer.invoke('vault:apply-sync', vaultRoot, writes, activeMemoryIds, memoryMarkdownBasenames),
+  readTextFile: (vaultRoot, relativePath) =>
+    ipcRenderer.invoke('vault:read-text-file', vaultRoot, relativePath),
 });

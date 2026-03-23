@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toCanvas } from 'html-to-image';
 import { useMapRef } from '../context/mapContextState';
 import { useMemoryStore } from '../store/memoryStore';
@@ -8,6 +9,12 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { SettingsButton } from './SettingsButton';
 import type { Memory, Group } from '../types/memory';
 import type { StudyEvent } from '../types/study';
+import {
+  HOTKEY_EXPORT_EVENT,
+  HOTKEY_IMPORT_EVENT,
+  HOTKEY_REPORT_EVENT,
+  HOTKEY_SHOT_EVENT,
+} from '../hooks/useKeyboardShortcuts';
 
 function screenshotFilename(): string {
   const d = new Date();
@@ -448,6 +455,27 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
     studyEvents,
   ]);
 
+  useEffect(() => {
+    const onExport = () => setExportOpen((o) => !o);
+    const onImport = () => handleImportClick();
+    const onShot = () => {
+      if (!screenshotBusy) void handleSaveScreenshot();
+    };
+    const onReport = () => {
+      if (!reportBusy) void handleGenerateReport();
+    };
+    window.addEventListener(HOTKEY_EXPORT_EVENT, onExport as EventListener);
+    window.addEventListener(HOTKEY_IMPORT_EVENT, onImport as EventListener);
+    window.addEventListener(HOTKEY_SHOT_EVENT, onShot as EventListener);
+    window.addEventListener(HOTKEY_REPORT_EVENT, onReport as EventListener);
+    return () => {
+      window.removeEventListener(HOTKEY_EXPORT_EVENT, onExport as EventListener);
+      window.removeEventListener(HOTKEY_IMPORT_EVENT, onImport as EventListener);
+      window.removeEventListener(HOTKEY_SHOT_EVENT, onShot as EventListener);
+      window.removeEventListener(HOTKEY_REPORT_EVENT, onReport as EventListener);
+    };
+  }, [handleGenerateReport, handleImportClick, handleSaveScreenshot, reportBusy, screenshotBusy]);
+
   return (
     <>
       <input
@@ -483,7 +511,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           }}
           className={ROUND_BUTTON_CLASS + (exportOpen ? ' border-accent bg-surface-elevated' : '')}
           aria-label="Export"
-          title="Export"
+          title="Export (Alt+E)"
           aria-expanded={exportOpen}
           aria-haspopup="true"
         >
@@ -493,32 +521,35 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
-        <span className={tooltipClass}>Export</span>
+        <span className={tooltipClass}>Export (Alt+E)</span>
       </div>
 
-      {exportOpen && (
-        <div
-          className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/30 p-4 backdrop-blur-[2px]"
-          onClick={() => setExportOpen(false)}
-          role="presentation"
-        >
+      {/* Portal: TopControlsBar uses translateX, which traps fixed positioning to the bar strip */}
+      {exportOpen &&
+        createPortal(
           <div
-            ref={exportMenuRef}
-            className="min-w-[180px] rounded-xl border border-border bg-surface py-2 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-label="Export options"
+            className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/30 p-4 backdrop-blur-[2px]"
+            onClick={() => setExportOpen(false)}
+            role="presentation"
           >
-            <p className="font-mono px-3 py-1.5 text-[11px] text-text-muted">Export as</p>
-            <button type="button" onClick={handleExportJson} className="font-mono w-full px-3 py-2.5 text-left text-[12px] text-text-primary hover:bg-surface-elevated hover:text-accent">
-              JSON
-            </button>
-            <button type="button" onClick={handleExportCsv} className="font-mono w-full px-3 py-2.5 text-left text-[12px] text-text-primary hover:bg-surface-elevated hover:text-accent">
-              CSV
-            </button>
-          </div>
-        </div>
-      )}
+            <div
+              ref={exportMenuRef}
+              className="min-w-[180px] rounded-xl border border-border bg-surface py-2 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-label="Export options"
+            >
+              <p className="font-mono px-3 py-1.5 text-[11px] text-text-muted">Export as</p>
+              <button type="button" onClick={handleExportJson} className="font-mono w-full px-3 py-2.5 text-left text-[12px] text-text-primary hover:bg-surface-elevated hover:text-accent">
+                JSON
+              </button>
+              <button type="button" onClick={handleExportCsv} className="font-mono w-full px-3 py-2.5 text-left text-[12px] text-text-primary hover:bg-surface-elevated hover:text-accent">
+                CSV
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Import: round button */}
       <div
@@ -538,6 +569,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           onClick={handleImportClick}
           className={ROUND_BUTTON_CLASS}
           aria-label="Import backup"
+          title="Import (Alt+I)"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -545,7 +577,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
         </button>
-        <span className={tooltipClass}>Import</span>
+        <span className={tooltipClass}>Import (Alt+I)</span>
       </div>
 
       {/* Save screenshot: round button — captures map with current effects, saves to downloads */}
@@ -567,6 +599,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           disabled={!map || screenshotBusy}
           className={ROUND_BUTTON_CLASS}
           aria-label="Save map screenshot"
+          title="Shot (Ctrl+I)"
         >
           {screenshotBusy ? (
             <span className="font-mono text-[10px] text-text-muted">…</span>
@@ -577,7 +610,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
             </svg>
           )}
         </button>
-        <span className={tooltipClass}>Shot</span>
+        <span className={tooltipClass}>Shot (Ctrl+I)</span>
       </div>
 
       {/* Generate report: round button — comprehensive PDF report, downloads */}
@@ -599,6 +632,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           disabled={reportBusy}
           className={ROUND_BUTTON_CLASS}
           aria-label="Generate report"
+          title="Report (Ctrl+R)"
         >
           {reportBusy ? (
             <span className="font-mono text-[10px] text-text-muted">…</span>
@@ -612,7 +646,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
             </svg>
           )}
         </button>
-        <span className={tooltipClass}>Report</span>
+        <span className={tooltipClass}>Report (Ctrl+R)</span>
       </div>
 
       <SettingsButton variant={variant} />

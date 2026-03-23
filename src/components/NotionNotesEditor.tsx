@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { parseNotesFrontMatter } from '../utils/notesFrontMatter';
 import remarkGfm from 'remark-gfm';
@@ -16,6 +16,18 @@ function clamp(n: number, min: number, max: number): number {
 export function NotionNotesEditor({ value, onChange }: NotionNotesEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [preview, setPreview] = useState(false);
+  const togglePreview = useCallback(() => setPreview((p) => !p), []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        togglePreview();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [togglePreview]);
 
   const parsed = useMemo(() => parseNotesFrontMatter(value), [value]);
 
@@ -129,9 +141,10 @@ export function NotionNotesEditor({ value, onChange }: NotionNotesEditorProps) {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setPreview((p) => !p)}
+            onClick={togglePreview}
             className="font-mono min-h-[28px] rounded border border-border bg-surface px-2 py-1 text-[10px] text-text-primary hover:bg-surface-elevated"
             aria-pressed={preview}
+            title={preview ? 'Edit' : 'Preview'}
           >
             {preview ? 'Edit' : 'Preview'}
           </button>
@@ -145,6 +158,7 @@ export function NotionNotesEditor({ value, onChange }: NotionNotesEditorProps) {
               type="button"
               onClick={() => wrapSelection('**', '**')}
               className="font-mono touch-target min-h-[28px] rounded px-2 text-[10px] text-text-muted hover:text-text-primary"
+              title="Bold"
             >
               Bold
             </button>
@@ -152,6 +166,7 @@ export function NotionNotesEditor({ value, onChange }: NotionNotesEditorProps) {
               type="button"
               onClick={() => wrapSelection('*', '*')}
               className="font-mono touch-target min-h-[28px] rounded px-2 text-[10px] text-text-muted hover:text-text-primary"
+              title="Italic"
             >
               Italic
             </button>
@@ -159,6 +174,7 @@ export function NotionNotesEditor({ value, onChange }: NotionNotesEditorProps) {
               type="button"
               onClick={() => wrapSelection('~~', '~~')}
               className="font-mono touch-target min-h-[28px] rounded px-2 text-[10px] text-text-muted hover:text-text-primary"
+              title="Strike"
             >
               Strike
             </button>
@@ -166,6 +182,7 @@ export function NotionNotesEditor({ value, onChange }: NotionNotesEditorProps) {
               type="button"
               onClick={() => wrapSelection('`', '`')}
               className="font-mono touch-target min-h-[28px] rounded px-2 text-[10px] text-text-muted hover:text-text-primary"
+              title="Code"
             >
               Code
             </button>
@@ -217,11 +234,11 @@ export function NotionNotesEditor({ value, onChange }: NotionNotesEditorProps) {
             onChange={(e) => onChange(e.target.value)}
             placeholder="YAML properties on top (--- ... ---). Then write Markdown below."
             rows={12}
-            className="font-body w-full resize-none bg-transparent px-3 pb-4 pt-1 text-base text-text-primary placeholder-text-muted outline-none min-h-[260px]"
+            className="font-body w-full resize-none bg-transparent px-3 pb-4 pt-1 text-base text-text-primary placeholder-text-muted outline-none min-h-[360px] md:min-h-[460px]"
           />
         </>
       ) : (
-        <div className="max-h-[45vh] overflow-y-auto px-3 pb-4 pt-2 font-body text-text-primary/90 leading-relaxed [&_p]:my-1 [&_h1]:mt-3 [&_h1]:text-2xl [&_h2]:mt-3 [&_h2]:text-xl [&_h3]:mt-2 [&_h3]:text-lg [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-text-secondary [&_a]:text-accent [&_a]:underline [&_pre]:my-3">
+        <div className="max-h-[62vh] overflow-y-auto px-3 pb-4 pt-2 font-body text-text-primary/90 leading-relaxed [&_p]:my-1 [&_h1]:mt-3 [&_h1]:text-2xl [&_h2]:mt-3 [&_h2]:text-xl [&_h3]:mt-2 [&_h3]:text-lg [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-text-secondary [&_a]:text-accent [&_a]:underline [&_pre]:my-3">
           {parsed.body.trim().length ? (
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkBreaks]}

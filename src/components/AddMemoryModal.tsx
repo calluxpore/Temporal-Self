@@ -88,6 +88,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const groups = useMemoryStore((s) => s.groups);
   const { location } = useReverseGeocode(effectiveLat, effectiveLng);
   const locationForYaml = location ?? notesFrontMatterInitial.location ?? formatCoords(effectiveLat, effectiveLng);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Note: we intentionally do NOT auto-rewrite YAML while the user is typing,
   // to avoid disrupting cursor/enter behavior. Location gets written on Save.
@@ -132,13 +133,14 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     setImageDataUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSave = () => {
+  const buildMemoryPayload = () => {
     const titleToSave = title.trim() || 'Untitled';
     const reservedErr = vaultTitleFilenameError(titleToSave);
     if (reservedErr) {
       setVaultTitleError(reservedErr);
-      return;
+      return null;
     }
+    setVaultTitleError(null);
     const chosenGroupId = groupId || null;
     const firstImage = imageDataUrls[0] ?? null;
     const parsed = parseNotesFrontMatter(notes);
@@ -153,17 +155,31 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     );
     const tagsField = tagsToSave.length ? tagsToSave : undefined;
     const linksField = linksToSave.length ? linksToSave : undefined;
+    return {
+      titleToSave,
+      dateToSave,
+      notesFull,
+      firstImage,
+      chosenGroupId,
+      tagsField,
+      linksField,
+    };
+  };
+
+  const handleSave = () => {
+    const payload = buildMemoryPayload();
+    if (!payload) return;
     if (editingMemory) {
       updateMemory(editingMemory.id, {
-        title: titleToSave,
-        date: dateToSave,
-        notes: notesFull,
+        title: payload.titleToSave,
+        date: payload.dateToSave,
+        notes: payload.notesFull,
         imageDataUrls: imageDataUrls.length ? imageDataUrls : undefined,
-        imageDataUrl: firstImage,
-        groupId: chosenGroupId,
+        imageDataUrl: payload.firstImage,
+        groupId: payload.chosenGroupId,
         customLabel: customLabel.trim() || undefined,
-        tags: tagsField,
-        links: linksField,
+        tags: payload.tagsField,
+        links: payload.linksField,
       });
       logStudyMemoryUpdated(editingMemory.id);
       setEditingMemory(null);
@@ -172,25 +188,69 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         id: generateId(),
         lat: pending.lat,
         lng: pending.lng,
-        title: titleToSave,
-        date: dateToSave,
-        notes: notesFull,
-        imageDataUrl: firstImage,
+        title: payload.titleToSave,
+        date: payload.dateToSave,
+        notes: payload.notesFull,
+        imageDataUrl: payload.firstImage,
         imageDataUrls: imageDataUrls.length ? imageDataUrls : undefined,
         createdAt: new Date().toISOString(),
-        groupId: chosenGroupId,
+        groupId: payload.chosenGroupId,
         customLabel: customLabel.trim() || undefined,
-        tags: tagsField,
-        links: linksField,
+        tags: payload.tagsField,
+        links: payload.linksField,
         nextReviewAt: toISODateString(getFirstReviewDate()),
         reviewCount: 0,
       };
       addMemory(memory);
       logStudyMemoryCreated(memory.id);
-      if (chosenGroupId) setDefaultGroupId(chosenGroupId);
+      if (payload.chosenGroupId) setDefaultGroupId(payload.chosenGroupId);
     }
     onClose();
   };
+
+  const handleClose = () => {
+    if (editingMemory) {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      const payload = buildMemoryPayload();
+      if (payload) {
+        updateMemory(editingMemory.id, {
+          title: payload.titleToSave,
+          date: payload.dateToSave,
+          notes: payload.notesFull,
+          imageDataUrls: imageDataUrls.length ? imageDataUrls : undefined,
+          imageDataUrl: payload.firstImage,
+          groupId: payload.chosenGroupId,
+          customLabel: customLabel.trim() || undefined,
+          tags: payload.tagsField,
+          links: payload.linksField,
+        });
+      }
+    }
+    onClose();
+  };
+
+  useEffect(() => {
+    if (!editingMemory) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      const payload = buildMemoryPayload();
+      if (!payload) return;
+      updateMemory(editingMemory.id, {
+        title: payload.titleToSave,
+        date: payload.dateToSave,
+        notes: payload.notesFull,
+        imageDataUrls: imageDataUrls.length ? imageDataUrls : undefined,
+        imageDataUrl: payload.firstImage,
+        groupId: payload.chosenGroupId,
+        customLabel: customLabel.trim() || undefined,
+        tags: payload.tagsField,
+        links: payload.linksField,
+      });
+    }, 280);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [editingMemory, title, notes, imageDataUrls, groupId, customLabel, locationForYaml, initialDate, initialLocationFallback, updateMemory]);
 
   const handleDeleteConfirm = (dontAskAgain?: boolean) => {
     if (editingMemory) {
@@ -256,11 +316,11 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [handleClose]);
 
   if (!pending && !editingMemory) return null;
 
@@ -293,7 +353,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="touch-target flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full border border-border bg-surface/70 text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary active:opacity-80"
             aria-label="Close"
             title="Close"
@@ -548,13 +608,20 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         <NotionNotesEditor value={notes} onChange={setNotes} />
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={handleSave}
-            className="font-mono touch-target min-h-[44px] min-w-[120px] flex-1 bg-accent px-6 py-3 text-sm font-medium text-background transition-opacity hover:opacity-90 active:opacity-95 md:flex-none md:py-2.5"
-          >
-            {isEdit ? 'SAVE CHANGES' : 'ARCHIVE MEMORY'}
-          </button>
+          {!isEdit && (
+            <button
+              type="button"
+              onClick={handleSave}
+              className="font-mono touch-target min-h-[44px] min-w-[120px] flex-1 bg-accent px-6 py-3 text-sm font-medium text-background transition-opacity hover:opacity-90 active:opacity-95 md:flex-none md:py-2.5"
+            >
+              ARCHIVE MEMORY
+            </button>
+          )}
+          {isEdit && (
+            <p className="font-mono text-xs text-text-muted">
+              Changes auto-save
+            </p>
+          )}
           {isEdit && (
             <button
               type="button"

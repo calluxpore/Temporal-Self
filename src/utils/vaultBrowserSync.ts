@@ -39,6 +39,25 @@ async function writeToPath(root: FileSystemDirectoryHandle, relativePath: string
   await w.close();
 }
 
+export async function readTextFromPathInDirectory(
+  root: FileSystemDirectoryHandle,
+  relativePath: string
+): Promise<string | null> {
+  const norm = relativePath.replace(/\\/g, '/');
+  const parts = norm.split('/').filter(Boolean);
+  const fileName = parts.pop();
+  if (!fileName) return null;
+  let dir: FileSystemDirectoryHandle | null = root;
+  for (const p of parts) {
+    dir = await dir.getDirectoryHandle(p).catch(() => null);
+    if (!dir) return null;
+  }
+  const fh = await dir.getFileHandle(fileName).catch(() => null);
+  if (!fh) return null;
+  const file = await fh.getFile();
+  return await file.text();
+}
+
 export async function applyVaultWritesToDirectory(root: FileSystemDirectoryHandle, writes: VaultFileWrite[]): Promise<void> {
   for (const wr of writes) {
     if (wr.kind === 'utf8') await writeToPath(root, wr.path, wr.content);

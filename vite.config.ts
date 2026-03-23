@@ -24,6 +24,13 @@ export default defineConfig({
               display: 'standalone',
               start_url: '/Memory-Atlas/',
               scope: '/Memory-Atlas/',
+              icons: [
+                {
+                  src: 'favicon.svg',
+                  type: 'image/svg+xml',
+                  purpose: 'any',
+                },
+              ],
             },
             workbox: {
               globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],

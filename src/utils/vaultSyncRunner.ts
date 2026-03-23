@@ -1,12 +1,16 @@
 import { buildVaultSyncPlan, type VaultFileWrite } from './vaultPlan';
 import {
   applyVaultWritesToDirectory,
+  readTextFromPathInDirectory,
   cleanupStaleMemoryMarkdownBrowser,
   cleanupVaultOrphansBrowser,
   ensureVaultPermission,
 } from './vaultBrowserSync';
 import type { Group, Memory } from '../types/memory';
 import { getVaultRootDirectoryHandle } from './idbStorage';
+import { vaultRelative } from './vaultPaths';
+import type { VaultSettings } from './vaultSettings';
+import { normalizeVaultSettings } from './vaultSettings';
 
 function uint8ToBase64(bytes: Uint8Array): string {
   const chunk = 0x8000;
@@ -34,11 +38,12 @@ export type VaultSyncResult = { ok: true } | { ok: false; error: string };
 export async function runVaultSyncForMemories(
   memories: Memory[],
   groups: Group[],
+  settings: VaultSettings,
   options: {
     electronVaultPath: string | null;
   }
 ): Promise<VaultSyncResult> {
-  const plan = buildVaultSyncPlan(memories, groups);
+  const plan = buildVaultSyncPlan(memories, groups, settings);
   const api = typeof window !== 'undefined' ? window.temporalVault : undefined;
 
   if (api?.applySync) {
@@ -61,5 +66,36 @@ export async function runVaultSyncForMemories(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Vault sync failed' };
+  }
+}
+
+export async function loadVaultSettingsFromDisk(options: {
+  electronVaultPath: string | null;
+}): Promise<{ ok: true; settings: VaultSettings | null } | { ok: false; error: string }> {
+  const api = typeof window !== 'undefined' ? window.temporalVault : undefined;
+  if (api?.readTextFile) {
+    const root = options.electronVaultPath?.trim();
+    if (!root) return { ok: true, settings: null };
+    const res = await api.readTextFile(root, vaultRelative.settingsJson);
+    if (!res.ok) return { ok: false, error: res.error };
+    if (res.text == null || !res.text.trim()) return { ok: true, settings: null };
+    try {
+      return { ok: true, settings: normalizeVaultSettings(JSON.parse(res.text)) };
+    } catch {
+      return { ok: false, error: 'Invalid vault settings JSON.' };
+    }
+  }
+
+  const handle = await getVaultRootDirectoryHandle();
+  if (!handle) return { ok: true, settings: null };
+
+  const okPerm = await ensureVaultPermission(handle);
+  if (!okPerm) return { ok: false, error: 'Vault folder permission denied. Re-link the folder in Settings.' };
+  try {
+    const text = await readTextFromPathInDirectory(handle, vaultRelative.settingsJson);
+    if (text == null || !text.trim()) return { ok: true, settings: null };
+    return { ok: true, settings: normalizeVaultSettings(JSON.parse(text)) };
+  } catch {
+    return { ok: false, error: 'Invalid vault settings JSON.' };
   }
 }

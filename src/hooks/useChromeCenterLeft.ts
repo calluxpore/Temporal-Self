@@ -14,6 +14,7 @@ export function useChromeCenterLeft(): string {
   const sidebarWidth = useMemoryStore((s) => s.sidebarWidth);
   const settingsDrawerOpen = useMemoryStore((s) => s.settingsDrawerOpen);
   const memorySearchDrawerOpen = useMemoryStore((s) => s.memorySearchDrawerOpen);
+  const recallModalMemoryId = useMemoryStore((s) => s.recallModalMemoryId);
   const editingMemory = useMemoryStore((s) => s.editingMemory);
   const isAddingMemory = useMemoryStore((s) => s.isAddingMemory);
   const pendingLatLng = useMemoryStore((s) => s.pendingLatLng);
@@ -21,6 +22,7 @@ export function useChromeCenterLeft(): string {
   const rightDockOpen =
     settingsDrawerOpen ||
     memorySearchDrawerOpen ||
+    recallModalMemoryId != null ||
     editingMemory != null ||
     (isAddingMemory && pendingLatLng != null);
 

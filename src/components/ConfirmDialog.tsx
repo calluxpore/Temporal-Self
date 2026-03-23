@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { createPortal } from 'react-dom';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -33,7 +34,7 @@ export function ConfirmDialog({
   useFocusTrap(ref, open);
 
   if (!open) return null;
-  return (
+  const content = (
     <div
       className="fixed inset-0 flex items-center justify-center bg-black/50 p-4"
       style={{ zIndex: zIndex ?? 1100 }}
@@ -83,4 +84,5 @@ export function ConfirmDialog({
       </div>
     </div>
   );
+  return createPortal(content, document.body);
 }

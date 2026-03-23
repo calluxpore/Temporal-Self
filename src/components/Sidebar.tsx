@@ -701,13 +701,23 @@ export function Sidebar() {
     [visibleMemories, sortCompare]
   );
   const memoryLabels = useMemo(() => {
-    const list: Memory[] = [...ungroupedMemories];
-    for (const g of groups) {
-      list.push(
-        ...visibleMemories.filter((m) => (m.groupId ?? null) === g.id).sort(sortCompare)
-      );
-    }
-    return new Map(list.map((m, i) => [m.id, getMemoryLabel(i)]));
+    const labels = new Map<string, string>();
+    const groupedVisible = visibleMemories.filter((m) => (m.groupId ?? null) !== null);
+
+    // Ungrouped: A, B, C...
+    ungroupedMemories.forEach((m, i) => labels.set(m.id, getMemoryLabel(i)));
+
+    // Suffix from group order in `groups` (stable while group exists). Hiding a group must not
+    // renumber other groups; deleting a group removes its slot and may renumber.
+    groups.forEach((g, groupIndex) => {
+      const inGroup = groupedVisible
+        .filter((m) => (m.groupId ?? null) === g.id)
+        .sort(sortCompare);
+      if (inGroup.length === 0) return;
+      const suffix = String(groupIndex + 1);
+      inGroup.forEach((m, i) => labels.set(m.id, `${getMemoryLabel(i)}${suffix}`));
+    });
+    return labels;
   }, [ungroupedMemories, groups, visibleMemories, sortCompare]);
   const createNewGroup = () => {
     const id = crypto.randomUUID();

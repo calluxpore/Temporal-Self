@@ -20,6 +20,12 @@ function escapeYamlDoubleQuoted(s: string): string {
     .replace(/\n/g, '\\n');
 }
 
+function normalizeTagForYaml(tag: string): string {
+  const t = tag.trim();
+  if (!t) return '';
+  return t.startsWith('#') ? t : `#${t}`;
+}
+
 function parseInlineList(value: string): string[] | undefined {
   const v = value.trim();
   if (!v.startsWith('[') || !v.endsWith(']')) return undefined;
@@ -100,13 +106,13 @@ export function serializeNotesFrontMatter(frontMatter: NotesFrontMatter, body: s
   if (location) parts.push(`location: "${escapeYamlDoubleQuoted(location)}"`);
 
   if (frontMatter.tags !== undefined) {
-    const tags = frontMatter.tags;
-    parts.push(`tags: [${tags.map((t) => `"${escapeYamlDoubleQuoted(t)}"`).join(', ')}]`);
+    const tags = frontMatter.tags.map(normalizeTagForYaml).filter(Boolean);
+    if (tags.length) parts.push(`tags: [${tags.map((t) => `"${escapeYamlDoubleQuoted(t)}"`).join(', ')}]`);
   }
 
   if (frontMatter.links !== undefined) {
     const links = frontMatter.links;
-    parts.push(`links: [${links.map((u) => `"${escapeYamlDoubleQuoted(u)}"`).join(', ')}]`);
+    if (links.length) parts.push(`links: [${links.map((u) => `"${escapeYamlDoubleQuoted(u)}"`).join(', ')}]`);
   }
 
   parts.push('---');

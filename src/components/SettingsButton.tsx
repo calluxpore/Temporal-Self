@@ -40,7 +40,7 @@ export function SettingsButton({ variant = 'fixed' }: { variant?: TopControlVari
         }}
         className={ROUND_BUTTON_CLASS + (settingsDrawerOpen ? ' border-accent bg-surface-elevated' : '')}
         aria-label="Settings"
-        title="Settings"
+        title="Settings (Shift+S)"
       >
         <svg
           width="22"
@@ -58,7 +58,7 @@ export function SettingsButton({ variant = 'fixed' }: { variant?: TopControlVari
           <circle cx="12" cy="12" r="3" />
         </svg>
       </button>
-      <span className={tooltipClass}>Settings</span>
+      <span className={tooltipClass}>Settings (Shift+S)</span>
     </div>
   );
 }

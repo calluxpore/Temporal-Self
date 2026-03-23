@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, CircleMarker, Rectangle, Polyline, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Rectangle, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -89,6 +89,9 @@ function MapClickHandler({
   const setSettingsDrawerOpen = useMemoryStore((s) => s.setSettingsDrawerOpen);
   const memorySearchDrawerOpen = useMemoryStore((s) => s.memorySearchDrawerOpen);
   const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
+  const recallModalMemoryId = useMemoryStore((s) => s.recallModalMemoryId);
+  const setRecallModalMemoryId = useMemoryStore((s) => s.setRecallModalMemoryId);
+  const endRecallSession = useMemoryStore((s) => s.endRecallSession);
 
   useMapEvents({
     click(e) {
@@ -103,6 +106,12 @@ function MapClickHandler({
 
       if (memorySearchDrawerOpen) {
         setMemorySearchDrawerOpen(false);
+        return;
+      }
+
+      if (recallModalMemoryId) {
+        endRecallSession();
+        setRecallModalMemoryId(null);
         return;
       }
 
@@ -210,19 +219,35 @@ function MapContent({
 }) {
   const map = useMap();
   const memoryIdToLabel = useMemo(() => {
-    const sorted = memoriesInSidebarOrder(memories, groups);
-    return new Map(sorted.map((m, i) => [m.id, getMemoryLabel(i)]));
-  }, [memories, groups]);
+    const labels = new Map<string, string>();
+    const visible = memories.filter((m) => visibleMemoryIds.has(m.id));
+    const groupedVisible = visible.filter((m) => (m.groupId ?? null) !== null);
+    const ungroupedVisible = visible.filter((m) => (m.groupId ?? null) === null).sort(compareOrderThenCreatedAt);
+
+    // Suffix from group order in `groups` (stable while group exists). Hiding a group on the map
+    // must not renumber other groups; deleting a group removes its slot and may renumber.
+    groups.forEach((g, groupIndex) => {
+      const inGroup = groupedVisible
+        .filter((m) => (m.groupId ?? null) === g.id)
+        .sort(compareOrderThenCreatedAt);
+      if (inGroup.length === 0) return;
+      const suffix = String(groupIndex + 1);
+      inGroup.forEach((m, i) => labels.set(m.id, `${getMemoryLabel(i)}${suffix}`));
+    });
+
+    // Keep ungrouped independent as well.
+    ungroupedVisible.forEach((m, i) => labels.set(m.id, getMemoryLabel(i)));
+    return labels;
+  }, [memories, groups, visibleMemoryIds]);
   const sortedVisible = useMemo(
     () => memoriesInSidebarOrder(memories, groups).filter((m) => visibleMemoryIds.has(m.id)),
     [memories, groups, visibleMemoryIds]
   );
 
-  const { timelinePaths, globalRoutePath, routeStartIds, routeEndIds } = (() => {
+  const { timelinePaths, routeStartIds, routeEndIds } = (() => {
     if (!timelineEnabled)
       return {
         timelinePaths: [] as [number, number][][],
-        globalRoutePath: null as [number, number][] | null,
         routeStartIds: new Set<string>(),
         routeEndIds: new Set<string>(),
       };
@@ -253,16 +278,7 @@ function MapContent({
       routeStartIds.add(ungrouped[0].id);
       routeEndIds.add(ungrouped[ungrouped.length - 1].id);
     }
-    const visibleSorted = memories
-      .filter((m) => visibleMemoryIds.has(m.id))
-      .sort((a, b) => a.date.localeCompare(b.date) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    const globalRaw = visibleSorted.length >= 2 ? visibleSorted.map((m) => [m.lat, m.lng] as [number, number]) : null;
-    const globalRoutePath = globalRaw && globalRaw.length >= 2 ? makePositions(globalRaw) : null;
-    if (visibleSorted.length >= 2) {
-      routeStartIds.add(visibleSorted[0].id);
-      routeEndIds.add(visibleSorted[visibleSorted.length - 1].id);
-    }
-    return { timelinePaths: paths, globalRoutePath, routeStartIds, routeEndIds };
+    return { timelinePaths: paths, routeStartIds, routeEndIds };
   })();
 
   return (
@@ -276,19 +292,6 @@ function MapContent({
         mapBlurred={mapBlurred}
         hintCenterLeft={hintCenterLeft}
       />
-      {searchHighlight?.type === 'point' && (
-        <CircleMarker
-          center={[searchHighlight.lat, searchHighlight.lng]}
-          radius={10}
-          pathOptions={{
-            color: SEARCH_HIGHLIGHT_BLUE,
-            fillColor: SEARCH_HIGHLIGHT_BLUE,
-            fillOpacity: 0.9,
-            weight: 2,
-            interactive: false,
-          }}
-        />
-      )}
       {searchHighlight?.type === 'area' && (
         <Rectangle
           bounds={[
@@ -320,21 +323,6 @@ function MapContent({
           }}
         />
       ))}
-      {globalRoutePath && globalRoutePath.length >= 2 && (
-        <Polyline
-          key="global-route"
-          positions={globalRoutePath}
-          pathOptions={{
-            color: TIMELINE_COLOR[theme],
-            weight: 2,
-            opacity: 0.75,
-            dashArray: '8 6',
-            lineCap: 'round',
-            lineJoin: 'round',
-            interactive: false,
-          }}
-        />
-      )}
       {pendingLatLng && (
         <Marker
           position={[pendingLatLng.lat, pendingLatLng.lng]}

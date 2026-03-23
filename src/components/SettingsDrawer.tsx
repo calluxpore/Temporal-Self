@@ -200,6 +200,74 @@ export function SettingsDrawer() {
               </p>
             )}
           </section>
+
+          <section className="mt-8 border-t border-border pt-6">
+            <h3 className="font-mono text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+              Keyboard shortcuts
+            </h3>
+            <div className="mt-3 overflow-hidden rounded-lg border border-border">
+              <table className="w-full border-collapse">
+                <tbody className="font-mono text-xs">
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">`</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle left drawer</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + D</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle theme</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + R</td>
+                    <td className="px-3 py-2 text-text-primary">Start recall</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + C</td>
+                    <td className="px-3 py-2 text-text-primary">Open reset dialog</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + S</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle path style</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Ctrl + S</td>
+                    <td className="px-3 py-2 text-text-primary">Open memory search</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + P</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle timeline path</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + H</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle heatmap</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + M</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle markers</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + E</td>
+                    <td className="px-3 py-2 text-text-primary">Open export menu</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + I</td>
+                    <td className="px-3 py-2 text-text-primary">Open import picker</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Ctrl + I</td>
+                    <td className="px-3 py-2 text-text-primary">Save map screenshot</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Ctrl + R</td>
+                    <td className="px-3 py-2 text-text-primary">Generate report</td>
+                  </tr>
+                  <tr>
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Shift + S</td>
+                    <td className="px-3 py-2 text-text-primary">Open settings</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       </div>
     </>

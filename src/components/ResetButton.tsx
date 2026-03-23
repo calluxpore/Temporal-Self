@@ -2,12 +2,20 @@ import { useState } from 'react';
 import { useMemoryStore } from '../store/memoryStore';
 import { clearVaultRootDirectoryHandle } from '../utils/idbStorage';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useEffect } from 'react';
+import { HOTKEY_RESET_EVENT } from '../hooks/useKeyboardShortcuts';
 
 type TopControlVariant = 'fixed' | 'bar';
 
 export function ResetButton({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const resetAllData = useMemoryStore((s) => s.resetAllData);
   const [pendingReset, setPendingReset] = useState(false);
+
+  useEffect(() => {
+    const onHotkey = () => setPendingReset(true);
+    window.addEventListener(HOTKEY_RESET_EVENT, onHotkey as EventListener);
+    return () => window.removeEventListener(HOTKEY_RESET_EVENT, onHotkey as EventListener);
+  }, []);
 
   const tooltipPositionClass =
     variant === 'bar'
@@ -33,6 +41,7 @@ export function ResetButton({ variant = 'fixed' }: { variant?: TopControlVariant
           onClick={() => setPendingReset(true)}
           className="flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
           aria-label="Reset all"
+          title="Reset (Alt+C)"
         >
           <svg
             width="22"
@@ -51,7 +60,7 @@ export function ResetButton({ variant = 'fixed' }: { variant?: TopControlVariant
           </svg>
         </button>
         <span className={tooltipPositionClass}>
-          Reset
+          Reset (Alt+C)
         </span>
       </div>
       <ConfirmDialog

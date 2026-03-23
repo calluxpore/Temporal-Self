@@ -2,6 +2,7 @@ import { useMemoryStore } from '../store/memoryStore';
 import { getVaultRootDirectoryHandle } from './idbStorage';
 import { scheduleVaultDiskBaselineRefresh, suppressVaultReconcile } from './vaultReconcile';
 import { runVaultSyncForMemories } from './vaultSyncRunner';
+import { buildVaultSettingsFromState } from './vaultSettings';
 
 /** One in-flight chain so auto-sync and “Save to vault now” never overlap with stale memory lists. */
 let syncChain: Promise<void> = Promise.resolve();
@@ -18,7 +19,8 @@ async function executeVaultDiskSync(): Promise<void> {
   }
 
   const fresh = useMemoryStore.getState();
-  const res = await runVaultSyncForMemories(fresh.memories, fresh.groups, {
+  const settings = buildVaultSettingsFromState(fresh);
+  const res = await runVaultSyncForMemories(fresh.memories, fresh.groups, settings, {
     electronVaultPath: fresh.vaultElectronPath,
   });
   const setMeta = useMemoryStore.getState().setVaultLastSyncMeta;

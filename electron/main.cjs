@@ -239,6 +239,22 @@ ipcMain.handle('vault:apply-sync', async (_event, vaultRoot, writes, activeMemor
   }
 });
 
+ipcMain.handle('vault:read-text-file', async (_event, vaultRoot, relativePath) => {
+  try {
+    const rootResolved = path.resolve(String(vaultRoot));
+    if (!fs.existsSync(rootResolved)) {
+      return { ok: false, error: 'Vault folder does not exist' };
+    }
+    const full = resolvedVaultPath(rootResolved, String(relativePath));
+    if (!fs.existsSync(full)) {
+      return { ok: true, text: null };
+    }
+    return { ok: true, text: fs.readFileSync(full, 'utf8') };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+});
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {

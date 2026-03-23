@@ -162,11 +162,12 @@ export function LocationSearch() {
 
   const handleSelect = useCallback(
     (result: GeoResult) => {
-      const highlight =
-        result.bbox != null
-          ? { type: 'area' as const, bbox: result.bbox }
-          : { type: 'point' as const, lat: result.lat, lng: result.lng };
-      setSearchHighlight(highlight);
+      // Only show map overlay for bbox results; point-only places use flyTo only (no blue dot).
+      if (result.bbox != null) {
+        setSearchHighlight({ type: 'area', bbox: result.bbox });
+      } else {
+        setSearchHighlight(null);
+      }
       setQuery('');
       setResults([]);
       setError(null);

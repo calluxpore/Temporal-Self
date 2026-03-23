@@ -248,7 +248,13 @@ export const useMemoryStore = create<MemoryState>()(
       setMemorySearchDrawerOpen: (open) =>
         set({
           memorySearchDrawerOpen: open,
-          ...(!open ? { memorySearchMatchIds: null } : {}),
+          ...(!open
+            ? {
+                memorySearchMatchIds: null,
+                // Avoid leaving a map highlight dot after closing archive search.
+                searchHighlight: null,
+              }
+            : {}),
         }),
       setMemorySearchMatchIds: (memorySearchMatchIds) => set({ memorySearchMatchIds }),
       bumpVaultLinkNonce: () => set((s) => ({ vaultLinkNonce: s.vaultLinkNonce + 1 })),
@@ -527,7 +533,11 @@ export const useMemoryStore = create<MemoryState>()(
       },
 
       setSelectedMemory: (memory) =>
-        set({ selectedMemoryId: memory?.id ?? null }),
+        set({
+          selectedMemoryId: memory?.id ?? null,
+          // Memory search drawer (z ~1121) stacks above editor/viewer — close it when opening a memory.
+          ...(memory != null ? { memorySearchDrawerOpen: false, memorySearchMatchIds: null } : {}),
+        }),
 
       setCardTargetMemoryId: (id) => set({ cardTargetMemoryId: id }),
 
@@ -579,7 +589,11 @@ export const useMemoryStore = create<MemoryState>()(
           };
         }),
 
-      setEditingMemory: (editingMemory) => set({ editingMemory }),
+      setEditingMemory: (editingMemory) =>
+        set({
+          editingMemory,
+          ...(editingMemory != null ? { memorySearchDrawerOpen: false, memorySearchMatchIds: null } : {}),
+        }),
 
       setIsAddingMemory: (isAddingMemory) => set({ isAddingMemory }),
 

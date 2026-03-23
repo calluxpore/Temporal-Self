@@ -35,6 +35,7 @@ export function MemorySearchButton({ variant = 'fixed' }: { variant?: TopControl
         }
         aria-label={memorySearchDrawerOpen ? 'Close memory search' : 'Search memories'}
         aria-pressed={memorySearchDrawerOpen}
+        title="Search (Ctrl+S)"
       >
         <svg
           width="22"
@@ -52,7 +53,7 @@ export function MemorySearchButton({ variant = 'fixed' }: { variant?: TopControl
           <path d="M21 21l-4.35-4.35" />
         </svg>
       </button>
-      {variant === 'bar' && <span className={TOOLTIP_BAR}>Search memories</span>}
+      {variant === 'bar' && <span className={TOOLTIP_BAR}>Search (Ctrl+S)</span>}
     </div>
   );
 }

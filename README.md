@@ -83,7 +83,7 @@ User-facing copy and the Electron window title use **Temporal Self** where updat
 - **Organization**: groups, collapse/hide groups, drag reorder, default group, starred favorites, and bulk actions.
 - **Map layers and filters**: search, date filter, favorites filter, timeline path, heatmap, marker visibility toggle.
 - **Drag memories on the map**: hover a memory to open its photo card, grab the top-right corner to move it; connected timeline polylines update live (Spline or Straight/orthogonal rounded corners), with a focus crosshair shown at the current drag target. Undo is captured once per drag.
-- **Keyboard shortcuts** (when not typing in inputs): **N** new memory, **/** focus search, **Escape** close selection/modals, **Ctrl+Z** / **Ctrl+Shift+Z** undo/redo.
+- **Keyboard shortcuts** (when not typing in inputs): see list below for map controls, plus **N** new memory, **/** focus search, **Escape** close selection/modals, **Ctrl+Z** / **Ctrl+Shift+Z** undo/redo.
 - **Recall practice (SM-2)**: due-based spaced repetition with session stats (`I remember` / `Show me` / skip flow).
 - **Stats dashboards**:
   - General stats (totals, places, starred, photos, by year/month, date-wise memories)
@@ -94,6 +94,35 @@ User-facing copy and the Electron window title use **Temporal Self** where updat
 - **Onboarding overlay**: multi-step tour (map, list/groups, calendar, stats, recall) with skip/next.
 - **Right-rail controls with hover tooltips**: quick-access icons for theme/recall/reset/layers/export/import/screenshot/report/contact.
 - **Research study support (Study panel)**: optional study logging in the Stats tab (participant ID + checkpoint tag + completion time) and an exportable event log for longitudinal analysis.
+
+---
+
+## Keyboard shortcuts
+
+### Global controls
+
+- `` ` `` — toggle left drawer open/collapse
+- `Alt + D` — toggle dark/light theme
+- `Alt + R` — start recall
+- `Alt + C` — open reset dialog
+- `Alt + S` — toggle timeline path style
+- `Ctrl + S` — open memory search
+- `Alt + P` — toggle timeline path
+- `Alt + H` — toggle heatmap
+- `Alt + M` — toggle markers
+- `Alt + E` — open export menu
+- `Alt + I` — open import file picker
+- `Ctrl + I` — save map screenshot
+- `Ctrl + R` — generate report
+- `Shift + S` — open settings
+
+### Navigation/editing
+
+- `N` — create new memory at map center
+- `/` — focus sidebar search field
+- `Escape` — close active modal/selection
+- `Ctrl + Z` / `Ctrl + Shift + Z` (`Ctrl + Y`) — undo/redo
+- In notes editor: `Ctrl + E` / `Cmd + E` — toggle Preview/Edit
 
 ---
 

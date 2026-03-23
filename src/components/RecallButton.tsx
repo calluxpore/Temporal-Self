@@ -43,6 +43,7 @@ export function RecallButton({ variant = 'fixed' }: { variant?: TopControlVarian
         onClick={startRecall}
         className="relative flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
         aria-label={dueCount > 0 ? `Recall: ${dueCount} due` : 'Practice recall (spaced repetition)'}
+        title="Recall (Alt+R)"
       >
         <svg
           width="22"
@@ -68,7 +69,7 @@ export function RecallButton({ variant = 'fixed' }: { variant?: TopControlVarian
         )}
       </button>
       <span className={tooltipPositionClass}>
-        Recall
+        Recall (Alt+R)
       </span>
     </div>
   );

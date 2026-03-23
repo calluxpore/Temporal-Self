@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMemoryStore } from '../store/memoryStore';
+import { useMapRef } from '../context/mapContextState';
 import { formatDate } from '../utils/formatDate';
 import { formatCoords } from '../utils/formatCoords';
 import { getMemoryImages } from '../utils/imageUtils';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import type { Memory } from '../types/memory';
+
+const RECALL_FLY_ZOOM = 17;
+const RECALL_FLY_DURATION = 0.65;
 
 interface RecallModalProps {
   memory: Memory;
@@ -17,15 +21,21 @@ interface RecallModalProps {
 }
 
 export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: RecallModalProps) {
+  const map = useMapRef();
   const scheduleNextReview = useMemoryStore((s) => s.scheduleNextReview);
   const logStudyRecallAnswered = useMemoryStore((s) => s.logStudyRecallAnswered);
   const [active, setActive] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const images = getMemoryImages(memory);
   const firstImage = images[0] ?? null;
   const { location: locationName, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng);
 
-  useFocusTrap(modalRef, true);
+  useFocusTrap(panelRef, true);
+
+  useEffect(() => {
+    if (!map) return;
+    map.flyTo([memory.lat, memory.lng], RECALL_FLY_ZOOM, { duration: RECALL_FLY_DURATION });
+  }, [map, memory.id, memory.lat, memory.lng]);
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setActive(true));
@@ -50,7 +60,7 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
     scheduleNextReview(memory.id, false);
     logStudyRecallAnswered(memory.id, 'show_me');
     onShowMemory(memory);
-    // Don't call onAnswered() here — parent closes recall modal and opens viewer; when viewer closes, parent will advance to next memory
+    // Don't call onAnswered() here — parent closes recall and opens viewer; when viewer closes, parent will advance to next memory
   };
 
   const handleSkip = () => {
@@ -60,14 +70,14 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
 
   return (
     <>
+      {/* pointer-events-none so the map stays interactive (pan/zoom); first map click closes via MapClickHandler. */}
+      <div className="pointer-events-none fixed inset-0 z-[1124] bg-background/10" aria-hidden />
+
       <div
-        className="fixed inset-0 z-[1100] bg-background/60 backdrop-blur-[2px]"
-        onClick={onClose}
-        aria-hidden
-      />
-      <div
-        ref={modalRef}
-        className={`modal-slide-up fixed inset-0 z-[1101] flex flex-col bg-surface md:inset-auto md:left-1/2 md:top-1/2 md:max-h-[90vh] md:w-full md:max-w-lg md:rounded border border-border md:shadow-xl ${active ? 'open' : ''}`}
+        ref={panelRef}
+        className={`pointer-events-auto fixed inset-y-0 right-0 z-[1125] flex w-[min(420px,92vw)] sm:w-[min(480px,88vw)] flex-col rounded-l-xl border-l border-y border-border bg-surface shadow-xl transition-transform duration-300 ease-out ${
+          active ? 'translate-x-0' : 'translate-x-full'
+        }`}
         onClick={(e) => e.stopPropagation()}
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)',
@@ -78,18 +88,38 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
         aria-labelledby="recall-title"
         aria-describedby="recall-desc"
       >
-        <div className="flex flex-1 flex-col overflow-x-hidden p-4 py-6 overscroll-contain md:p-8">
+        <div
+          className="flex flex-1 flex-col overflow-y-auto overscroll-contain p-4 py-6 md:p-6"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="font-mono text-[11px] font-medium uppercase tracking-wide text-text-secondary">Recall</p>
+              <p className="mt-0.5 font-mono text-xs text-text-muted">Map shows this location — answer from memory.</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="touch-target flex min-h-[40px] min-w-[40px] flex-shrink-0 items-center justify-center rounded-full border border-border bg-surface/70 text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary active:opacity-80"
+              aria-label="Close recall"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
           {firstImage ? (
-            <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 mb-4 md:mb-6 flex min-h-0 max-h-56 md:max-h-72 items-center justify-center overflow-hidden rounded-t-lg bg-surface-elevated md:rounded-t-xl">
+            <div className="-mx-1 mb-4 flex min-h-0 max-h-48 items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-elevated sm:max-h-56">
               <img
                 src={firstImage}
                 alt=""
-                className="max-h-56 w-full object-contain md:max-h-72"
+                className="max-h-48 w-full object-contain sm:max-h-56"
                 role="presentation"
               />
             </div>
           ) : (
-            <div className="mb-2 flex items-center justify-center rounded-full mx-auto w-14 h-14 border border-border bg-surface-elevated">
+            <div className="mb-4 flex items-center justify-center rounded-full mx-auto w-14 h-14 border border-border bg-surface-elevated">
               <svg
                 width="28"
                 height="28"
@@ -107,16 +137,13 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
               </svg>
             </div>
           )}
-          <h2
-            id="recall-title"
-            className="font-display text-center text-lg font-semibold text-text-primary md:text-xl"
-          >
+          <h2 id="recall-title" className="font-display text-lg font-semibold text-text-primary md:text-xl">
             Do you remember what happened here?
           </h2>
-          <p id="recall-desc" className="mt-2 text-center font-mono text-sm text-text-secondary">
+          <p id="recall-desc" className="mt-2 font-mono text-sm text-text-secondary">
             {formatDate(memory.date, true)}
           </p>
-          <div className="mt-2 space-y-0.5 text-center">
+          <div className="mt-2 space-y-0.5">
             {locationName && (
               <p className="font-mono text-sm text-text-primary" title="Address">
                 {locationLoading ? '…' : locationName}
@@ -126,9 +153,7 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
               {formatCoords(memory.lat, memory.lng)}
             </p>
           </div>
-          <p className="mt-4 text-center text-sm text-text-muted">
-            Take a moment to think, then choose below.
-          </p>
+          <p className="mt-4 text-sm text-text-muted">Take a moment to think, then choose below.</p>
 
           <div className="mt-8 flex flex-col gap-3">
             <button

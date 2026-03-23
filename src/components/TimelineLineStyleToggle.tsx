@@ -32,6 +32,7 @@ export function TimelineLineStyleToggle({ variant = 'fixed' }: { variant?: TopCo
         onClick={toggle}
         className="flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
         aria-label={`Timeline path style: ${label}. Click to switch`}
+        title="Style (Alt+S)"
       >
         <svg
           width="22"
@@ -66,7 +67,7 @@ export function TimelineLineStyleToggle({ variant = 'fixed' }: { variant?: TopCo
             : 'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
         }
       >
-        Path Style
+        Style (Alt+S)
       </span>
     </div>
   );
