@@ -5,6 +5,7 @@ declare global {
     /** Exposed in Electron via preload; absent in plain web builds. */
     temporalVault?: {
       selectFolder: () => Promise<string | null>;
+      openFolder: (vaultRoot: string) => Promise<{ ok: true } | { ok: false; error: string }>;
       listMemoryIds: (
         vaultRoot: string
       ) => Promise<{ ok: true; ids: string[] } | { ok: false; error: string; ids: string[] }>;

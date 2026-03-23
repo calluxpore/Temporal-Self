@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -169,6 +169,20 @@ ipcMain.handle('vault:select-folder', async () => {
   });
   if (r.canceled || !r.filePaths[0]) return null;
   return r.filePaths[0];
+});
+
+ipcMain.handle('vault:open-folder', async (_event, vaultRoot) => {
+  try {
+    const rootResolved = path.resolve(String(vaultRoot));
+    if (!fs.existsSync(rootResolved)) {
+      return { ok: false, error: 'Vault folder does not exist' };
+    }
+    const err = await shell.openPath(rootResolved);
+    if (err) return { ok: false, error: err };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 });
 
 ipcMain.handle('vault:list-memory-ids', async (_event, vaultRoot) => {

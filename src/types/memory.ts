@@ -1,3 +1,6 @@
+/** How you felt when capturing this memory (optional mood tracking). */
+export type MemoryMood = 'radiant' | 'content' | 'neutral' | 'concerned' | 'distraught';
+
 export interface Memory {
   id: string;
   lat: number;
@@ -9,6 +12,8 @@ export interface Memory {
   imageDataUrl?: string | null;
   /** Multiple images per memory (data URLs). When set, imageDataUrl is ignored for display. */
   imageDataUrls?: string[];
+  /** Optional voice memo as a data URL (e.g. audio/webm). Synced to vault as `attachments/<id>/voice.*`. */
+  audioDataUrl?: string | null;
   createdAt: string;
   /** Optional for backward compatibility with saved data; treat missing as null. */
   groupId?: string | null;
@@ -34,6 +39,8 @@ export interface Memory {
   easeFactor?: number;
   /** Number of times user clicked "Show me" (failed recall) in practice. */
   failedReviewCount?: number;
+  /** Optional mood / emotion when the memory was recorded. */
+  mood?: MemoryMood | null;
 }
 
 export interface Group {

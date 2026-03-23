@@ -26,6 +26,8 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
   const setSidebarOpen = useMemoryStore((s) => s.setSidebarOpen);
   const theme = useMemoryStore((s) => s.theme);
   const setTheme = useMemoryStore((s) => s.setTheme);
+  const mapStyle = useMemoryStore((s) => s.mapStyle);
+  const setMapStyle = useMemoryStore((s) => s.setMapStyle);
   const memories = useMemoryStore((s) => s.memories);
   const setRecallModalMemoryId = useMemoryStore((s) => s.setRecallModalMemoryId);
   const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
@@ -37,8 +39,11 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
   const setTimelineEnabled = useMemoryStore((s) => s.setTimelineEnabled);
   const heatmapEnabled = useMemoryStore((s) => s.heatmapEnabled);
   const setHeatmapEnabled = useMemoryStore((s) => s.setHeatmapEnabled);
+  const moodHeatmapEnabled = useMemoryStore((s) => s.moodHeatmapEnabled);
+  const setMoodHeatmapEnabled = useMemoryStore((s) => s.setMoodHeatmapEnabled);
   const markersVisible = useMemoryStore((s) => s.markersVisible);
   const setMarkersVisible = useMemoryStore((s) => s.setMarkersVisible);
+  const setSidebarView = useMemoryStore((s) => s.setSidebarView);
   const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
   const setSettingsDrawerOpen = useMemoryStore((s) => s.setSettingsDrawerOpen);
 
@@ -187,9 +192,29 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
           setHeatmapEnabled(!heatmapEnabled);
           return;
         }
+        if (k === 'g') {
+          e.preventDefault();
+          setMoodHeatmapEnabled(!moodHeatmapEnabled);
+          return;
+        }
+        if (k === 't') {
+          e.preventDefault();
+          setMapStyle(mapStyle === 'watercolor' ? 'default' : 'watercolor');
+          return;
+        }
         if (k === 'm') {
           e.preventDefault();
           setMarkersVisible(!markersVisible);
+          return;
+        }
+        if (k === 'l') {
+          e.preventDefault();
+          setSidebarView('list');
+          return;
+        }
+        if (k === 'k') {
+          e.preventDefault();
+          setSidebarView('calendar');
           return;
         }
         if (k === 'e') {
@@ -229,6 +254,8 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
       setSidebarOpen,
       theme,
       setTheme,
+      mapStyle,
+      setMapStyle,
       memories,
       setRecallModalMemoryId,
       setRecallSessionQueue,
@@ -240,8 +267,11 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
       setTimelineEnabled,
       heatmapEnabled,
       setHeatmapEnabled,
+      moodHeatmapEnabled,
+      setMoodHeatmapEnabled,
       markersVisible,
       setMarkersVisible,
+      setSidebarView,
       setMemorySearchDrawerOpen,
       setSettingsDrawerOpen,
     ]

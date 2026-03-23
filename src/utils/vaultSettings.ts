@@ -3,6 +3,7 @@ import type { StudyCheckpointTag, StudyEvent } from '../types/study';
 
 export type VaultSettings = {
   theme?: 'dark' | 'light';
+  mapStyle?: 'default' | 'watercolor';
   mapView?: { lat: number; lng: number; zoom: number } | null;
   hasChosenStartLocation?: boolean;
   defaultGroupId?: string | null;
@@ -21,13 +22,15 @@ export type VaultSettings = {
   dateFilterFrom?: string | null;
   dateFilterTo?: string | null;
   heatmapEnabled?: boolean;
+  moodHeatmapEnabled?: boolean;
   markersVisible?: boolean;
-  sidebarView?: 'list' | 'calendar' | 'stats' | 'memoryStats';
+  sidebarView?: 'list' | 'calendar' | 'stats' | 'moodStats' | 'memoryStats';
 };
 
 export function buildVaultSettingsFromState(
   s: {
     theme: 'dark' | 'light';
+    mapStyle: 'default' | 'watercolor';
     mapView: { lat: number; lng: number; zoom: number } | null;
     hasChosenStartLocation: boolean;
     defaultGroupId: string | null;
@@ -46,12 +49,14 @@ export function buildVaultSettingsFromState(
     dateFilterFrom: string | null;
     dateFilterTo: string | null;
     heatmapEnabled: boolean;
+    moodHeatmapEnabled: boolean;
     markersVisible: boolean;
-    sidebarView: 'list' | 'calendar' | 'stats' | 'memoryStats';
+    sidebarView: 'list' | 'calendar' | 'stats' | 'moodStats' | 'memoryStats';
   }
 ): VaultSettings {
   return {
     theme: s.theme,
+    mapStyle: s.mapStyle,
     mapView: s.mapView,
     hasChosenStartLocation: s.hasChosenStartLocation,
     defaultGroupId: s.defaultGroupId,
@@ -70,6 +75,7 @@ export function buildVaultSettingsFromState(
     dateFilterFrom: s.dateFilterFrom,
     dateFilterTo: s.dateFilterTo,
     heatmapEnabled: s.heatmapEnabled,
+    moodHeatmapEnabled: s.moodHeatmapEnabled,
     markersVisible: s.markersVisible,
     sidebarView: s.sidebarView,
   };
@@ -103,6 +109,7 @@ export function normalizeVaultSettings(raw: unknown): VaultSettings {
 
   return {
     theme: o.theme === 'light' ? 'light' : o.theme === 'dark' ? 'dark' : undefined,
+    mapStyle: o.mapStyle === 'watercolor' || o.mapStyle === 'default' ? o.mapStyle : undefined,
     mapView,
     hasChosenStartLocation:
       typeof o.hasChosenStartLocation === 'boolean' ? o.hasChosenStartLocation : undefined,
@@ -146,11 +153,13 @@ export function normalizeVaultSettings(raw: unknown): VaultSettings {
     dateFilterFrom: typeof o.dateFilterFrom === 'string' ? o.dateFilterFrom : o.dateFilterFrom === null ? null : undefined,
     dateFilterTo: typeof o.dateFilterTo === 'string' ? o.dateFilterTo : o.dateFilterTo === null ? null : undefined,
     heatmapEnabled: typeof o.heatmapEnabled === 'boolean' ? o.heatmapEnabled : undefined,
+    moodHeatmapEnabled: typeof o.moodHeatmapEnabled === 'boolean' ? o.moodHeatmapEnabled : undefined,
     markersVisible: typeof o.markersVisible === 'boolean' ? o.markersVisible : undefined,
     sidebarView:
       o.sidebarView === 'list' ||
       o.sidebarView === 'calendar' ||
       o.sidebarView === 'stats' ||
+      o.sidebarView === 'moodStats' ||
       o.sidebarView === 'memoryStats'
         ? o.sidebarView
         : undefined,

@@ -1,20 +1,26 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import EmojiPicker, { type EmojiClickData, Theme, EmojiStyle } from 'emoji-picker-react';
 import { useMemoryStore } from '../store/memoryStore';
 import { compressImageToDataUrl, getMemoryImages } from '../utils/imageUtils';
-import { formatCoords } from '../utils/formatCoords';
 import { getFirstReviewDate, toISODateString } from '../utils/spacedRepetition';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import { ConfirmDialog } from './ConfirmDialog';
-import type { Memory, PendingLatLng } from '../types/memory';
+import type { Memory, MemoryMood, PendingLatLng } from '../types/memory';
+import { MEMORY_MOOD_OPTIONS, parseMemoryMood } from '../utils/memoryMoods';
 import { NotionNotesEditor } from './NotionNotesEditor';
 import { parseNotesFrontMatter, serializeNotesFrontMatter } from '../utils/notesFrontMatter';
 import { memoryNoteDisplayName, vaultTitleFilenameError } from '../utils/vaultMarkdown';
+import { blobToDataUrl, isVoiceRecordingSupported, preferredVoiceMimeType } from '../utils/voiceNote';
+import { VoiceNoteInlinePlayer } from './VoiceNoteInlinePlayer';
 
 function generateId(): string {
   return crypto.randomUUID();
+}
+
+function formatLocationCoords(lat: number, lng: number): string {
+  return `${lat}, ${lng}`;
 }
 
 interface AddMemoryModalProps {
@@ -56,10 +62,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     new Date().toISOString().slice(0, 10);
   const initialTags = notesFrontMatterInitial.tags ?? editingMemory?.tags ?? [];
   const initialLinks = notesFrontMatterInitial.links ?? editingMemory?.links ?? [];
-  const initialLocationFallback =
-    typeof notesFrontMatterInitial.location === 'string' && notesFrontMatterInitial.location.trim().length
-      ? notesFrontMatterInitial.location
-      : formatCoords(effectiveLat, effectiveLng);
+  const initialLocationFallback = formatLocationCoords(effectiveLat, effectiveLng);
 
   const initialNotesFull = serializeNotesFrontMatter(
     { date: initialDate, location: initialLocationFallback, tags: initialTags, links: initialLinks },
@@ -74,6 +77,13 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const [groupId, setGroupId] = useState<string | null>(
     editingMemory ? (editingMemory.groupId ?? null) : (defaultGroupId ?? null)
   );
+  const [mood, setMood] = useState<MemoryMood | null>(() => parseMemoryMood(editingMemory?.mood) ?? null);
+  const [audioDataUrl, setAudioDataUrl] = useState<string | null>(() => editingMemory?.audioDataUrl ?? null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const [customLabel, setCustomLabel] = useState(editingMemory?.customLabel ?? '');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [emojiPickerRect, setEmojiPickerRect] = useState<{ top: number; left: number } | null>(null);
@@ -86,9 +96,75 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const groups = useMemoryStore((s) => s.groups);
-  const { location } = useReverseGeocode(effectiveLat, effectiveLng);
-  const locationForYaml = location ?? notesFrontMatterInitial.location ?? formatCoords(effectiveLat, effectiveLng);
+  useReverseGeocode(effectiveLat, effectiveLng);
+  const locationForYaml = formatLocationCoords(effectiveLat, effectiveLng);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const voiceSupported = useMemo(() => isVoiceRecordingSupported(), []);
+
+  const stopMediaStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const mr = mediaRecorderRef.current;
+      if (mr && mr.state !== 'inactive') {
+        try {
+          mr.stop();
+        } catch {
+          /* */
+        }
+      }
+      mediaRecorderRef.current = null;
+      stopMediaStream();
+    };
+  }, [stopMediaStream]);
+
+  const toggleVoiceRecording = useCallback(async () => {
+    setAudioError(null);
+    if (isRecording) {
+      const mr = mediaRecorderRef.current;
+      if (mr && mr.state !== 'inactive') mr.stop();
+      return;
+    }
+    if (!voiceSupported) {
+      setAudioError('Voice recording is not supported here.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mime = preferredVoiceMimeType();
+      const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = async () => {
+        setIsRecording(false);
+        stopMediaStream();
+        const parts = chunksRef.current;
+        chunksRef.current = [];
+        mediaRecorderRef.current = null;
+        if (parts.length === 0) return;
+        try {
+          const blob = new Blob(parts, { type: mr.mimeType || 'audio/webm' });
+          const dataUrl = await blobToDataUrl(blob);
+          setAudioDataUrl(dataUrl);
+        } catch {
+          setAudioError('Could not save recording.');
+        }
+      };
+      mr.start(250);
+      mediaRecorderRef.current = mr;
+      setIsRecording(true);
+    } catch {
+      setAudioError('Microphone permission denied or unavailable.');
+      stopMediaStream();
+    }
+  }, [isRecording, voiceSupported, stopMediaStream]);
 
   // Note: we intentionally do NOT auto-rewrite YAML while the user is typing,
   // to avoid disrupting cursor/enter behavior. Location gets written on Save.
@@ -147,7 +223,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     const dateToSave = parsed.frontMatter.date ?? initialDate;
     const tagsToSave = parsed.frontMatter.tags ?? [];
     const linksToSave = parsed.frontMatter.links ?? [];
-    const locationToSave = parsed.frontMatter.location ?? locationForYaml ?? initialLocationFallback;
+    const locationToSave = locationForYaml || initialLocationFallback;
 
     const notesFull = serializeNotesFrontMatter(
       { date: dateToSave, location: locationToSave, tags: tagsToSave, links: linksToSave },
@@ -163,6 +239,8 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
       chosenGroupId,
       tagsField,
       linksField,
+      moodField: mood ?? undefined,
+      audioField: audioDataUrl ?? undefined,
     };
   };
 
@@ -180,6 +258,8 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         customLabel: customLabel.trim() || undefined,
         tags: payload.tagsField,
         links: payload.linksField,
+        mood: payload.moodField,
+        audioDataUrl: payload.audioField,
       });
       logStudyMemoryUpdated(editingMemory.id);
       setEditingMemory(null);
@@ -198,6 +278,8 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         customLabel: customLabel.trim() || undefined,
         tags: payload.tagsField,
         links: payload.linksField,
+        mood: payload.moodField,
+        audioDataUrl: payload.audioField,
         nextReviewAt: toISODateString(getFirstReviewDate()),
         reviewCount: 0,
       };
@@ -223,6 +305,8 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           customLabel: customLabel.trim() || undefined,
           tags: payload.tagsField,
           links: payload.linksField,
+          mood: payload.moodField,
+          audioDataUrl: payload.audioField,
         });
       }
     }
@@ -245,12 +329,27 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         customLabel: customLabel.trim() || undefined,
         tags: payload.tagsField,
         links: payload.linksField,
+        mood: payload.moodField,
+        audioDataUrl: payload.audioField,
       });
     }, 280);
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [editingMemory, title, notes, imageDataUrls, groupId, customLabel, locationForYaml, initialDate, initialLocationFallback, updateMemory]);
+  }, [
+    editingMemory,
+    title,
+    notes,
+    imageDataUrls,
+    audioDataUrl,
+    groupId,
+    mood,
+    customLabel,
+    locationForYaml,
+    initialDate,
+    initialLocationFallback,
+    updateMemory,
+  ]);
 
   const handleDeleteConfirm = (dontAskAgain?: boolean) => {
     if (editingMemory) {
@@ -345,12 +444,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           className={`flex flex-1 flex-col overflow-x-hidden p-4 py-6 overscroll-contain md:p-8 ${emojiPickerOpen ? 'overflow-y-hidden' : 'overflow-y-auto'}`}
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-2">
-            <p className="font-mono text-sm text-accent">
-              {formatCoords(effectiveLat, effectiveLng)}
-            </p>
-          </div>
+        <div className="mb-2 flex items-start justify-end gap-3">
           <button
             type="button"
             onClick={handleClose}
@@ -364,7 +458,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           </button>
         </div>
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-1 flex items-center gap-3">
           <div className="relative flex h-10 w-10 flex-shrink-0 md:h-12 md:w-12">
             <button
               ref={iconButtonRef}
@@ -421,76 +515,163 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           </p>
         )}
 
-        <div className="mt-4" ref={groupDropdownRef}>
-          <label className="font-mono mb-1 block text-xs text-text-secondary">
-            Group
-          </label>
-          <div className="relative w-full max-w-[200px]">
-            <button
-              type="button"
-              onClick={() => setGroupDropdownOpen((o) => !o)}
-              className="font-mono w-full min-h-[44px] touch-target flex items-center justify-between gap-3 border-b border-border bg-surface-elevated/50 py-3 pl-3 pr-3 text-left text-base text-text-primary outline-none transition-colors hover:bg-surface-elevated md:py-2 md:text-sm"
-              aria-expanded={groupDropdownOpen}
-              aria-haspopup="listbox"
-              aria-label="Select group"
-            >
-              <span className="min-w-0 flex-1 truncate text-left">
-                {groupId ? groups.find((g) => g.id === groupId)?.name ?? 'Ungrouped' : 'Ungrouped'}
-              </span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 transition-transform ${groupDropdownOpen ? 'rotate-180' : ''}`} aria-hidden>
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
-            {groupDropdownOpen && (
-              <ul
-                role="listbox"
-                className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded border border-border bg-surface shadow-lg py-1"
+        <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-4">
+          {/* shrink-0 + fixed max width so inner w-full cannot expand this flex item to 100% and squeeze mood to 0 width */}
+          <div ref={groupDropdownRef} className="w-[200px] shrink-0">
+            <label className="font-mono mb-1 block text-xs text-text-secondary">
+              Group
+            </label>
+            <div className="relative w-full">
+              <button
+                type="button"
+                onClick={() => setGroupDropdownOpen((o) => !o)}
+                className={`font-mono w-full min-h-[44px] touch-target flex items-center justify-between gap-3 border border-border bg-surface-elevated/70 py-3 pl-3 pr-3 text-left text-base text-text-primary outline-none transition-colors hover:bg-surface-elevated md:py-2 md:text-sm ${
+                  groupDropdownOpen ? 'rounded-t-lg rounded-b-none border-b-transparent' : 'rounded-lg'
+                }`}
+                aria-expanded={groupDropdownOpen}
+                aria-haspopup="listbox"
+                aria-label="Select group"
               >
-                <li role="option" aria-selected={!groupId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGroupId(null);
-                      setGroupDropdownOpen(false);
-                    }}
-                    className={`font-mono w-full min-h-[44px] touch-target py-2.5 pl-3 pr-3 text-left text-sm transition-colors hover:bg-surface-elevated focus:outline-none ${!groupId ? 'bg-surface-elevated text-accent' : 'text-text-primary'}`}
-                  >
-                    Ungrouped
-                  </button>
-                </li>
-                {groups.map((g) => (
-                  <li key={g.id} role="option" aria-selected={groupId === g.id}>
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {groupId ? groups.find((g) => g.id === groupId)?.name ?? 'Ungrouped' : 'Ungrouped'}
+                </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 transition-transform ${groupDropdownOpen ? 'rotate-180' : ''}`} aria-hidden>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              {groupDropdownOpen && (
+                <ul
+                  role="listbox"
+                  className="absolute left-0 right-0 top-full z-10 mt-0 max-h-48 overflow-y-auto overflow-x-hidden rounded-b-lg border border-border border-t-0 bg-surface shadow-lg py-1"
+                >
+                  <li role="option" aria-selected={!groupId}>
                     <button
                       type="button"
                       onClick={() => {
-                        setGroupId(g.id);
+                        setGroupId(null);
                         setGroupDropdownOpen(false);
                       }}
-                      className={`font-mono w-full min-h-[44px] touch-target py-2.5 pl-3 pr-3 text-left text-sm transition-colors hover:bg-surface-elevated focus:outline-none ${groupId === g.id ? 'bg-surface-elevated text-accent' : 'text-text-primary'}`}
+                      className={`font-mono w-full min-h-[44px] touch-target py-2.5 pl-3 pr-3 text-left text-sm transition-colors hover:bg-surface-elevated focus:outline-none ${
+                        !groupId ? 'bg-accent/10 text-accent' : 'text-text-primary'
+                      }`}
                     >
-                      {g.name}
+                      Ungrouped
                     </button>
                   </li>
-                ))}
-                <li className="border-t border-border mt-1 pt-1">
+                  {groups.map((g) => (
+                    <li key={g.id} role="option" aria-selected={groupId === g.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGroupId(g.id);
+                          setGroupDropdownOpen(false);
+                        }}
+                        className={`font-mono w-full min-h-[44px] touch-target py-2.5 pl-3 pr-3 text-left text-sm transition-colors hover:bg-surface-elevated focus:outline-none ${
+                          groupId === g.id ? 'bg-accent/10 text-accent' : 'text-text-primary'
+                        }`}
+                      >
+                        {g.name}
+                      </button>
+                    </li>
+                  ))}
+                  <li className="border-t border-border mt-1 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = crypto.randomUUID();
+                        addGroup({ id, name: 'Group', collapsed: false });
+                        setGroupId(id);
+                        setDefaultGroupId(id);
+                        setGroupDropdownOpen(false);
+                      }}
+                      className="font-mono w-full min-h-[44px] touch-target py-2.5 pl-3 pr-3 text-left text-sm text-accent transition-colors hover:bg-surface-elevated focus:outline-none"
+                    >
+                      + New group
+                    </button>
+                  </li>
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="min-w-0 shrink-0 self-end"
+            role="group"
+            aria-label="Mood or emotion"
+          >
+            <label className="font-mono mb-1 block text-xs text-text-secondary">Mood</label>
+            <div className="flex flex-wrap gap-2">
+              {MEMORY_MOOD_OPTIONS.map((opt) => {
+                const selected = mood === opt.id;
+                return (
                   <button
+                    key={opt.id}
                     type="button"
-                    onClick={() => {
-                      const id = crypto.randomUUID();
-                      addGroup({ id, name: 'New group', collapsed: false });
-                      setGroupId(id);
-                      setDefaultGroupId(id);
-                      setGroupDropdownOpen(false);
-                    }}
-                    className="font-mono w-full min-h-[44px] touch-target py-2.5 pl-3 pr-3 text-left text-sm text-accent transition-colors hover:bg-surface-elevated focus:outline-none"
+                    title={`${opt.label} — ${opt.description}`}
+                    aria-label={`${opt.label}: ${opt.description}`}
+                    aria-pressed={selected}
+                    onClick={() => setMood((prev) => (prev === opt.id ? null : opt.id))}
+                    className={`touch-target flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border text-xl transition-colors md:min-h-[40px] md:min-w-[40px] md:text-lg ${
+                      selected
+                        ? 'border-accent bg-accent/15 shadow-[0_0_0_3px_var(--color-accent-glow)] ring-2 ring-accent/50'
+                        : 'border-border bg-surface-elevated/60 hover:border-accent/50 hover:bg-surface-elevated'
+                    }`}
                   >
-                    + New group
+                    <span aria-hidden>{opt.emoji}</span>
                   </button>
-                </li>
-              </ul>
-            )}
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1 basis-[min(100%,16rem)] self-end">
+            <label className="font-mono mb-1 block text-xs text-text-secondary">Voice</label>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void toggleVoiceRecording()}
+                disabled={!voiceSupported}
+                aria-pressed={isRecording}
+                aria-label={isRecording ? 'Stop recording' : 'Record a voice note'}
+                title={isRecording ? 'Stop recording' : 'Record a voice note'}
+                className={`touch-target flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors md:h-10 md:w-10 ${
+                  isRecording
+                    ? 'border-danger bg-danger/15 text-danger'
+                    : 'border-border bg-surface-elevated/80 text-text-primary hover:border-accent/50 hover:bg-surface-elevated'
+                } disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  {isRecording ? (
+                    <rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" stroke="none" />
+                  ) : (
+                    <>
+                      <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" />
+                      <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3" strokeLinecap="round" />
+                    </>
+                  )}
+                </svg>
+              </button>
+              <VoiceNoteInlinePlayer
+                src={audioDataUrl}
+                isRecording={isRecording}
+                onClear={() => setAudioDataUrl(null)}
+                className="min-w-0 flex-1 sm:min-w-[180px]"
+              />
+            </div>
           </div>
         </div>
+        {(audioError || !voiceSupported) && (
+          <div className="mt-2 space-y-1">
+            {audioError && (
+              <p className="max-w-[20rem] font-mono text-[10px] text-danger" role="alert">
+                {audioError}
+              </p>
+            )}
+            {!voiceSupported && (
+              <p className="font-mono text-[10px] text-text-muted">Recording unavailable</p>
+            )}
+          </div>
+        )}
 
         <div
           onDragOver={(e) => {
@@ -506,7 +687,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
               fileInputRef.current?.click();
             }
           }}
-          className={`relative z-0 mt-6 flex h-[min(34vh,320px)] min-h-[132px] w-full cursor-pointer touch-target flex-col overflow-hidden rounded border-2 border-dashed transition-colors ${
+          className={`relative z-0 mt-5 flex h-[min(40vh,380px)] min-h-[160px] w-full cursor-pointer touch-target flex-col overflow-hidden rounded border-2 border-dashed transition-colors ${
             dragOver ? 'border-accent bg-accent-glow' : 'border-border bg-surface-elevated'
           }`}
         >

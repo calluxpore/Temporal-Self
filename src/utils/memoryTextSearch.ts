@@ -2,6 +2,7 @@ import type { Memory, Group } from '../types/memory';
 import { parseNotesFrontMatter } from './notesFrontMatter';
 import { memoriesInSidebarOrder } from './memoryOrder';
 import { memoryNoteDisplayName, vaultMemoryFilename } from './vaultMarkdown';
+import { moodOption } from './memoryMoods';
 
 /** Calendar date from ISO (YYYY-MM-DD) without time — avoids matching every memory on "t", ":", "z", etc. */
 function calendarDateFromCreatedAt(iso: string | undefined): string {
@@ -23,6 +24,12 @@ function haystackForMemory(memory: Memory, groups: Group[]): string {
   parts.push(memory.lat.toFixed(4), memory.lng.toFixed(4));
 
   if (memory.customLabel) parts.push(memory.customLabel);
+  if (memory.mood) {
+    const mo = moodOption(memory.mood);
+    if (mo) {
+      parts.push(mo.id, mo.label, mo.description);
+    }
+  }
   (memory.tags ?? []).forEach((t) => parts.push(t));
   (memory.links ?? []).forEach((l) => parts.push(l));
 

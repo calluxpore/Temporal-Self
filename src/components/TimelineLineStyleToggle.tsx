@@ -5,6 +5,8 @@ type TopControlVariant = 'fixed' | 'bar';
 export function TimelineLineStyleToggle({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const timelineLineStyle = useMemoryStore((s) => s.timelineLineStyle);
   const setTimelineLineStyle = useMemoryStore((s) => s.setTimelineLineStyle);
+  const isNonDefaultStyle = timelineLineStyle !== 'spline';
+  const activeClasses = isNonDefaultStyle ? 'border-accent bg-accent-glow text-accent' : '';
 
   const toggle = () => {
     setTimelineLineStyle(timelineLineStyle === 'spline' ? 'orthogonal' : 'spline');
@@ -30,8 +32,9 @@ export function TimelineLineStyleToggle({ variant = 'fixed' }: { variant?: TopCo
       <button
         type="button"
         onClick={toggle}
-        className="flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
+        className={`flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${activeClasses}`}
         aria-label={`Timeline path style: ${label}. Click to switch`}
+        aria-pressed={isNonDefaultStyle}
         title="Style (Alt+S)"
       >
         <svg
@@ -43,7 +46,7 @@ export function TimelineLineStyleToggle({ variant = 'fixed' }: { variant?: TopCo
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-text-secondary"
+          className={isNonDefaultStyle ? 'text-accent' : 'text-text-secondary'}
         >
           {timelineLineStyle === 'spline' ? (
             <>

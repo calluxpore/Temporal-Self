@@ -7,9 +7,13 @@ import {
   svgOverviewBars,
   svgMemoriesPerYear,
   svgGroupsBars,
+  svgMoodDistribution,
+  svgMoodValenceScale,
   svgRecallDonut,
   svgRecallByCycle,
 } from './reportCharts';
+import { MEMORY_MOOD_OPTIONS } from './memoryMoods';
+import { computeMoodReportSnapshot } from './moodReportStats';
 
 function placeKey(lat: number, lng: number): string {
   return `${Math.round(lat * 10) / 10},${Math.round(lng * 10) / 10}`;
@@ -295,7 +299,121 @@ export async function generateReportPdf(
     y += SECTION_GAP_MM;
   }
 
-  // Section divider: Groups → Study
+  // Section divider: Groups → Mood
+  drawSectionDivider(8);
+
+  // —— Section: Mood & emotion ——
+  if (y > pageH - PAGE_BOTTOM_MARGIN_MM - 100) {
+    doc.addPage();
+    y = margin;
+  }
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 30, 38);
+  doc.text('Mood & emotion', margin, y);
+  y += lineHeight * 2;
+
+  const moodSnap = computeMoodReportSnapshot(memories);
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    `Coverage: ${moodSnap.tagged} of ${moodSnap.total} memories have a mood (${moodSnap.coveragePct}%).`,
+    margin,
+    y
+  );
+  y += lineHeight;
+
+  if (moodSnap.tagged === 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.text(
+      'No mood labels yet. Tag moods in the memory editor (next to Group) to include distribution and valence in future reports.',
+      margin,
+      y,
+      { maxWidth: pageW - margin * 2 }
+    );
+    y += lineHeight * 2;
+    doc.setFont('helvetica', 'normal');
+    y += SECTION_GAP_MM;
+  } else {
+    if (toImage) {
+      const moodItems = MEMORY_MOOD_OPTIONS.map((o) => ({
+        label: o.label,
+        count: moodSnap.counts[o.id],
+        pct: Math.round((moodSnap.counts[o.id] / moodSnap.tagged) * 100),
+      }));
+      const moodSvg = svgMoodDistribution(moodItems, moodSnap.maxCount);
+      const moodImg = await toImage(moodSvg);
+      const moodSvgH = 24 + moodItems.length * 28 - 8 + 24;
+      const moodH = (CHART_WIDTH_MM * moodSvgH) / 400;
+      if (y > pageH - PAGE_BOTTOM_MARGIN_MM - moodH - 30) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.addImage(moodImg, 'PNG', margin, y, CHART_WIDTH_MM, moodH);
+      y += moodH + lineHeight;
+
+      if (moodSnap.avgValence != null) {
+        const valSvg = svgMoodValenceScale(moodSnap.avgValence);
+        const valImg = await toImage(valSvg);
+        const valH = (CHART_WIDTH_MM * 56) / 400;
+        if (y > pageH - PAGE_BOTTOM_MARGIN_MM - valH - 24) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.addImage(valImg, 'PNG', margin, y, CHART_WIDTH_MM, valH);
+        y += valH + lineHeight;
+      }
+    } else {
+      for (const o of MEMORY_MOOD_OPTIONS) {
+        const c = moodSnap.counts[o.id];
+        const pct = Math.round((c / moodSnap.tagged) * 100);
+        doc.text(`${o.label}: ${c} (${pct}%)`, margin, y);
+        y += lineHeight;
+      }
+      y += lineHeight;
+    }
+
+    doc.text(`Average valence: ${moodSnap.avgValence?.toFixed(2) ?? '—'} (scale -2 to +2)`, margin, y);
+    y += lineHeight;
+    doc.text(`Summary: ${moodSnap.balanceLabel}`, margin, y);
+    y += lineHeight;
+    doc.text(`Positive (radiant + content): ${moodSnap.posShare}%`, margin, y);
+    y += lineHeight;
+    doc.text(`Neutral: ${moodSnap.neuShare}%`, margin, y);
+    y += lineHeight;
+    doc.text(`Difficult (concerned + distraught): ${moodSnap.negShare}%`, margin, y);
+    y += lineHeight;
+    if (moodSnap.entropyBits != null && moodSnap.diversityPct != null) {
+      doc.text(
+        `Mood diversity (entropy): ${moodSnap.entropyBits.toFixed(2)} bits (${moodSnap.diversityPct}% of maximum spread)`,
+        margin,
+        y
+      );
+      y += lineHeight;
+    }
+    if (moodSnap.dominant) {
+      doc.text(
+        `Most common mood: ${moodSnap.dominant.label} (${moodSnap.dominant.n} memories)`,
+        margin,
+        y
+      );
+      y += lineHeight;
+    }
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 110);
+    const moodDisclaimer = doc.splitTextToSize(
+      'Mood analytics are for personal reflection only; they do not diagnose medical or mental health conditions.',
+      pageW - margin * 2
+    );
+    doc.text(moodDisclaimer, margin, y);
+    y += lineHeight * (moodDisclaimer.length || 1);
+    doc.setFontSize(11);
+    doc.setTextColor(30, 30, 38);
+    y += SECTION_GAP_MM;
+  }
+
+  // Section divider: Mood → Study
   drawSectionDivider(8);
 
   // —— Section: Study ——

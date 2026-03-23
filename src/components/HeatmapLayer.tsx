@@ -32,10 +32,11 @@ export function HeatmapLayer({
       return;
     }
     const heat = L.heatLayer([], {
-      radius: 45,
-      blur: 28,
-      minOpacity: 0.35,
+      radius: 60,
+      blur: 48,
+      minOpacity: 0.3,
       max: 1,
+      maxZoom: 16,
       gradient: HEAT_GRADIENT,
     });
     heat.addTo(map);

@@ -95,11 +95,23 @@ function normalizeYamlTag(tag: string): string {
   return t.startsWith('#') ? t : `#${t}`;
 }
 
+function stripLegacyBodyLocationLine(body: string): string {
+  const normalized = body.replace(/\r\n/g, '\n');
+  // Legacy format used to inject a location line at top of body:
+  // **Location:** <value>
+  const cleaned = normalized.replace(/^\s*\*\*Location:\*\*[^\n]*(?:\n{1,2})?/i, '');
+  return cleaned;
+}
+
 /**
  * Obsidian-friendly note: YAML front matter (Temporal Self metadata) + markdown body.
  * Image paths are vault-relative from the chosen root.
  */
-export function memoryToVaultMarkdown(memory: Memory, imageRelPaths: string[]): string {
+export function memoryToVaultMarkdown(
+  memory: Memory,
+  imageRelPaths: string[],
+  audioRelPath?: string | null
+): string {
   const { frontMatter: noteFm, body: noteBody } = parseNotesFrontMatter(memory.notes);
 
   const tags = (memory.tags?.length ? memory.tags : noteFm.tags)?.map(normalizeYamlTag).filter(Boolean);
@@ -109,6 +121,7 @@ export function memoryToVaultMarkdown(memory: Memory, imageRelPaths: string[]): 
 
   const date = memory.date || noteFm.date;
   if (date) lines.push(`date: ${yamlQuote(date)}`);
+  lines.push(`location: ${memory.lat}, ${memory.lng}`);
 
   lines.push(`created: ${yamlQuote(memory.createdAt)}`);
   lines.push(`lat: ${yamlScalar(memory.lat)}`);
@@ -124,6 +137,8 @@ export function memoryToVaultMarkdown(memory: Memory, imageRelPaths: string[]): 
 
   if (memory.customLabel != null && memory.customLabel !== '')
     lines.push(`customLabel: ${yamlQuote(memory.customLabel)}`);
+
+  if (memory.mood) lines.push(`mood: ${yamlQuote(memory.mood)}`);
 
   const tagsLine = yamlStringList(tags);
   if (tagsLine) lines.push(`tags: ${tagsLine}`);
@@ -141,14 +156,13 @@ export function memoryToVaultMarkdown(memory: Memory, imageRelPaths: string[]): 
     lines.push(`images: [${imageRelPaths.map((p) => yamlQuote(p)).join(', ')}]`);
   }
 
-  lines.push('---', '');
-
-  const loc = noteFm.location?.trim();
-  if (loc) {
-    lines.push(`**Location:** ${loc}`, '');
+  if (audioRelPath) {
+    lines.push(`audio: ${yamlQuote(audioRelPath)}`);
   }
 
-  lines.push(noteBody.trimEnd());
+  lines.push('---', '');
+
+  lines.push(stripLegacyBodyLocationLine(noteBody).trimEnd());
   const out = lines.join('\n');
   return out.endsWith('\n') ? out : `${out}\n`;
 }
@@ -158,7 +172,7 @@ export const VAULT_README = `# Temporal Self folder
 This folder is written by **Temporal Self**. It is safe to browse and edit notes in Obsidian; the app keeps its own copy in the browser (IndexedDB) and **re-syncs** markdown from the app on change. While a vault folder is linked, **deleting a memory note here** (or in Explorer) removes that memory from the app after a short refresh—same idea as deleting a note in Obsidian.
 
 - \`memories/\` — one \`.md\` file per memory (YAML front matter includes \`id\`). Titled notes use \`Title-<id>.md\` (title sanitized for illegal path characters); \`Untitled\` uses \`untitled-<id>.md\`. The id in the file name keeps duplicate titles from colliding on disk.
-- \`attachments/<memory-id>/\` — photos exported from the app.
+- \`attachments/<memory-id>/\` — photos and optional voice note (\`voice.*\`) exported from the app.
 - \`groups.json\` — group names and ids (edit with care; prefer changing groups in the app).
 - \`settings.json\` — app-level preferences (theme, map/timeline toggles, filters, study/session options).
 
@@ -173,7 +187,12 @@ export function dataUrlToUint8Array(dataUrl: string): { bytes: Uint8Array; ext: 
   if (mime.includes('png')) ext = 'png';
   else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
   else if (mime.includes('webp')) ext = 'webp';
-  else if (mime.includes('gif')) ext = 'gif';
+  else   if (mime.includes('gif')) ext = 'gif';
+  else if (mime.includes('webm')) ext = 'webm';
+  else if (mime.includes('ogg')) ext = 'ogg';
+  else if (mime.includes('mpeg') || mime.includes('mp3')) ext = 'mp3';
+  else if (mime.includes('mp4') || mime.includes('m4a') || mime.includes('aac')) ext = 'm4a';
+  else if (mime.includes('wav')) ext = 'wav';
   try {
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
@@ -201,4 +220,16 @@ export function collectMemoryImagePaths(memory: Memory): { relPaths: string[]; b
   });
 
   return { relPaths, binaries };
+}
+
+/** Single voice file under attachments/<memory-id>/voice.<ext> (does not collide with numbered images). */
+export function collectMemoryVoiceNote(memory: Memory): {
+  relPath: string | null;
+  binary: { path: string; bytes: Uint8Array } | null;
+} {
+  if (!memory.audioDataUrl?.trim()) return { relPath: null, binary: null };
+  const parsed = dataUrlToUint8Array(memory.audioDataUrl);
+  if (!parsed) return { relPath: null, binary: null };
+  const rel = `${vaultRelative.attachments}/${memory.id}/voice.${parsed.ext}`;
+  return { relPath: rel, binary: { path: rel, bytes: parsed.bytes } };
 }

@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('temporalVault', {
   selectFolder: () => ipcRenderer.invoke('vault:select-folder'),
+  openFolder: (vaultRoot) => ipcRenderer.invoke('vault:open-folder', vaultRoot),
   listMemoryIds: (vaultRoot) => ipcRenderer.invoke('vault:list-memory-ids', vaultRoot),
   startMemoriesWatch: (vaultRoot) => ipcRenderer.invoke('vault:start-memories-watch', vaultRoot),
   stopMemoriesWatch: () => ipcRenderer.invoke('vault:stop-memories-watch'),

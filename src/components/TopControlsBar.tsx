@@ -3,9 +3,11 @@ import { ThemeToggle } from './ThemeToggle';
 import { RecallButton } from './RecallButton';
 import { ResetButton } from './ResetButton';
 import { MemorySearchButton } from './MemorySearchButton';
+import { MapStyleToggle } from './MapStyleToggle';
 import { TimelineLineStyleToggle } from './TimelineLineStyleToggle';
 import { TimelineToggle } from './TimelineToggle';
 import { HeatmapToggle } from './HeatmapToggle';
+import { MoodHeatmapToggle } from './MoodHeatmapToggle';
 import { MarkersToggle } from './MarkersToggle';
 import { FavoritesToggle } from './FavoritesToggle';
 import { ExportImportButtons } from './ExportImportButtons';
@@ -27,9 +29,11 @@ export function TopControlsBar() {
         <RecallButton variant="bar" />
         <ResetButton variant="bar" />
         <MemorySearchButton variant="bar" />
+        <MapStyleToggle variant="bar" />
         <TimelineLineStyleToggle variant="bar" />
         <TimelineToggle variant="bar" />
         <HeatmapToggle variant="bar" />
+        <MoodHeatmapToggle variant="bar" />
         <MarkersToggle variant="bar" />
         <FavoritesToggle variant="bar" />
         <ExportImportButtons variant="bar" />

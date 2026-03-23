@@ -14,6 +14,8 @@ export type SearchHighlight =
   | null;
 
 export type TimelineLineStyle = 'spline' | 'orthogonal';
+const GROUP_NAME_MAX_LENGTH = 6;
+export type MapStyle = 'default' | 'watercolor';
 
 interface MemoryState {
   mapView: { lat: number; lng: number; zoom: number } | null;
@@ -30,6 +32,7 @@ interface MemoryState {
   sidebarOpen: boolean;
   searchQuery: string;
   theme: 'dark' | 'light';
+  mapStyle: MapStyle;
   timelineEnabled: boolean;
   timelineLineStyle: TimelineLineStyle;
   defaultGroupId: string | null;
@@ -45,10 +48,12 @@ interface MemoryState {
   dateFilterTo: string | null;
   /** Show heatmap layer on map. */
   heatmapEnabled: boolean;
+  /** Show mood heatmap layer on map. */
+  moodHeatmapEnabled: boolean;
   /** Show memory markers and labels on map. */
   markersVisible: boolean;
-  /** Sidebar main view: 'list' | 'calendar' | 'stats' | 'memoryStats'. */
-  sidebarView: 'list' | 'calendar' | 'stats' | 'memoryStats';
+  /** Sidebar main view: list, calendar, memory stats (totals), mood stats, recall stats. */
+  sidebarView: 'list' | 'calendar' | 'stats' | 'moodStats' | 'memoryStats';
   /** Bulk selection: memory IDs. */
   selectedMemoryIds: string[];
   /** Undo stack (snapshots of { memories, groups }). */
@@ -116,6 +121,7 @@ interface MemoryState {
   setSortOrder: (sortOrder: 'asc' | 'desc') => void;
   setDateFilter: (from: string | null, to: string | null) => void;
   setHeatmapEnabled: (value: boolean) => void;
+  setMoodHeatmapEnabled: (value: boolean) => void;
   setMarkersVisible: (value: boolean) => void;
   setSidebarView: (view: MemoryState['sidebarView']) => void;
   addMemory: (memory: Memory) => void;
@@ -136,6 +142,7 @@ interface MemoryState {
   setMapView: (value: { lat: number; lng: number; zoom: number }) => void;
   setHasChosenStartLocation: (value: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
+  setMapStyle: (mapStyle: MapStyle) => void;
   setTimelineEnabled: (value: boolean) => void;
   setTimelineLineStyle: (value: TimelineLineStyle) => void;
   setDefaultGroupId: (id: string | null) => void;
@@ -204,6 +211,7 @@ export const useMemoryStore = create<MemoryState>()(
       sidebarOpen: true,
       searchQuery: '',
       theme: 'dark',
+      mapStyle: 'default',
       timelineEnabled: false,
       timelineLineStyle: 'spline',
       defaultGroupId: null,
@@ -214,6 +222,7 @@ export const useMemoryStore = create<MemoryState>()(
       dateFilterFrom: null,
       dateFilterTo: null,
       heatmapEnabled: false,
+      moodHeatmapEnabled: false,
       markersVisible: true,
       sidebarView: 'list',
       selectedMemoryIds: [],
@@ -468,6 +477,7 @@ export const useMemoryStore = create<MemoryState>()(
           };
         }),
       setHeatmapEnabled: (heatmapEnabled) => set({ heatmapEnabled }),
+      setMoodHeatmapEnabled: (moodHeatmapEnabled) => set({ moodHeatmapEnabled }),
       setMarkersVisible: (markersVisible) => set({ markersVisible }),
       setSidebarView: (sidebarView) => set({ sidebarView }),
 
@@ -542,6 +552,7 @@ export const useMemoryStore = create<MemoryState>()(
       setCardTargetMemoryId: (id) => set({ cardTargetMemoryId: id }),
 
       setTheme: (theme) => set({ theme }),
+      setMapStyle: (mapStyle) => set({ mapStyle }),
 
       setTimelineEnabled: (timelineEnabled) => set({ timelineEnabled }),
 
@@ -550,11 +561,14 @@ export const useMemoryStore = create<MemoryState>()(
       setDefaultGroupId: (defaultGroupId) => set({ defaultGroupId }),
 
       addGroup: (group) =>
-        set((state) => ({
-          ...pushUndoInSet(state),
-          groups: [...state.groups, group],
-          defaultGroupId: group.id,
-        })),
+        set((state) => {
+          const normalizedName = (group.name ?? '').trim().slice(0, GROUP_NAME_MAX_LENGTH) || 'Group';
+          return {
+            ...pushUndoInSet(state),
+            groups: [...state.groups, { ...group, name: normalizedName }],
+            defaultGroupId: group.id,
+          };
+        }),
 
       removeGroup: (id) =>
         set((state) => ({
@@ -567,12 +581,21 @@ export const useMemoryStore = create<MemoryState>()(
         })),
 
       updateGroup: (id, updates) =>
-        set((state) => ({
-          ...pushUndoInSet(state),
-          groups: state.groups.map((g) =>
-            g.id === id ? { ...g, ...updates } : g
-          ),
-        })),
+        set((state) => {
+          const normalizedUpdates =
+            typeof updates.name === 'string'
+              ? {
+                  ...updates,
+                  name: updates.name.trim().slice(0, GROUP_NAME_MAX_LENGTH) || 'Group',
+                }
+              : updates;
+          return {
+            ...pushUndoInSet(state),
+            groups: state.groups.map((g) =>
+              g.id === id ? { ...g, ...normalizedUpdates } : g
+            ),
+          };
+        }),
 
       reorderMemoriesInGroup: (groupId, orderedMemoryIds) =>
         set((state) => {
@@ -708,7 +731,7 @@ export const useMemoryStore = create<MemoryState>()(
     }),
     {
       name: 'temporal-self-storage',
-      version: 9,
+      version: 10,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         mapView: state.mapView,
@@ -716,6 +739,7 @@ export const useMemoryStore = create<MemoryState>()(
         memories: state.memories,
         groups: state.groups,
         theme: state.theme,
+        mapStyle: state.mapStyle,
         timelineLineStyle: state.timelineLineStyle,
         defaultGroupId: state.defaultGroupId,
         sidebarWidth: state.sidebarWidth,
@@ -807,6 +831,12 @@ export const useMemoryStore = create<MemoryState>()(
           const copy = { ...p };
           delete copy.vaultSyncEnabled;
           return withVault(copy);
+        }
+        if (version < 10) {
+          return withVault({
+            ...p,
+            mapStyle: p.mapStyle === 'watercolor' ? 'watercolor' : 'default',
+          });
         }
         return withVault(p);
       },

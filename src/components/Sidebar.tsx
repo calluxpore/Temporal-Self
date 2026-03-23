@@ -2,11 +2,11 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useMapRef } from '../context/mapContextState';
 import { useIsMd } from '../hooks/useMediaQuery';
 import { useMemoryStore } from '../store/memoryStore';
-import { SearchBar } from './SearchBar';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CalendarView } from './CalendarView';
 import { StatsDashboard } from './StatsDashboard';
 import { MemoryStatsDashboard } from './MemoryStatsDashboard';
+import { MoodStatsDashboard } from './MoodStatsDashboard';
 import { compareMemories } from '../utils/memoryOrder';
 import { formatDate } from '../utils/formatDate';
 import { getMemoryLabel } from '../utils/memoryLabel';
@@ -48,6 +48,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 
 const DRAG_MEMORY_KEY = 'memory-id';
 const DROP_LINE_END = '__drop_end__';
+const GROUP_NAME_MAX_LENGTH = 6;
 
 /** Insert draggedId so it appears before beforeId, or at end if beforeId is null. */
 function insertBefore(ids: string[], draggedId: string, beforeId: string | null): string[] {
@@ -364,8 +365,9 @@ function GroupSection({
   const handleBlur = () => {
     setEditingName(false);
     onClearOpenForRename?.();
-    if (editValue.trim() && editValue.trim() !== name) {
-      updateGroup(id, { name: editValue.trim() });
+    const nextName = editValue.trim().slice(0, GROUP_NAME_MAX_LENGTH);
+    if (nextName && nextName !== name) {
+      updateGroup(id, { name: nextName });
     } else {
       setEditValue(name);
     }
@@ -436,10 +438,11 @@ function GroupSection({
         {editingName && !isUngrouped ? (
           <input
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
+            onChange={(e) => setEditValue(e.target.value.slice(0, GROUP_NAME_MAX_LENGTH))}
             onBlur={handleBlur}
             onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget.blur(), handleBlur())}
             className="font-mono flex-1 bg-transparent py-0 text-[11px] text-text-primary outline-none"
+            maxLength={GROUP_NAME_MAX_LENGTH}
             autoFocus
           />
         ) : (
@@ -723,7 +726,7 @@ export function Sidebar() {
     const id = crypto.randomUUID();
     addGroup({
       id,
-      name: 'New group',
+      name: 'Group',
       collapsed: false,
     });
     setOpenForRenameId(id);
@@ -774,11 +777,12 @@ export function Sidebar() {
               </svg>
             </button>
           </div>
-          <div className="flex gap-0.5 rounded border border-border p-0.5">
+          <div className="flex gap-0.5 overflow-x-auto rounded border border-border p-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               type="button"
               onClick={() => setSidebarView('list')}
-              className={`font-mono min-h-[28px] flex-1 rounded text-[10px] transition-colors ${
+              title="List view (Alt+L)"
+              className={`font-mono min-h-[28px] shrink-0 rounded px-2 text-[9px] transition-colors sm:text-[10px] ${
                 sidebarView === 'list' ? 'bg-surface-elevated text-accent' : 'text-text-muted hover:text-text-primary'
               }`}
               aria-pressed={sidebarView === 'list'}
@@ -788,7 +792,8 @@ export function Sidebar() {
             <button
               type="button"
               onClick={() => setSidebarView('calendar')}
-              className={`font-mono min-h-[28px] flex-1 rounded text-[10px] transition-colors ${
+              title="Calendar view (Alt+K)"
+              className={`font-mono min-h-[28px] shrink-0 rounded px-2 text-[9px] transition-colors sm:text-[10px] ${
                 sidebarView === 'calendar' ? 'bg-surface-elevated text-accent' : 'text-text-muted hover:text-text-primary'
               }`}
               aria-pressed={sidebarView === 'calendar'}
@@ -798,17 +803,30 @@ export function Sidebar() {
             <button
               type="button"
               onClick={() => setSidebarView('stats')}
-              className={`font-mono min-h-[28px] flex-1 rounded text-[10px] transition-colors ${
+              title="Totals, places, dates"
+              className={`font-mono min-h-[28px] shrink-0 rounded px-2 text-[9px] transition-colors sm:text-[10px] ${
                 sidebarView === 'stats' ? 'bg-surface-elevated text-accent' : 'text-text-muted hover:text-text-primary'
               }`}
               aria-pressed={sidebarView === 'stats'}
             >
-              Stats
+              Memory stats
+            </button>
+            <button
+              type="button"
+              onClick={() => setSidebarView('moodStats')}
+              title="Mood and emotion analytics"
+              className={`font-mono min-h-[28px] shrink-0 rounded px-2 text-[9px] transition-colors sm:text-[10px] ${
+                sidebarView === 'moodStats' ? 'bg-surface-elevated text-accent' : 'text-text-muted hover:text-text-primary'
+              }`}
+              aria-pressed={sidebarView === 'moodStats'}
+            >
+              Mood stats
             </button>
             <button
               type="button"
               onClick={() => setSidebarView('memoryStats')}
-              className={`font-mono min-h-[28px] flex-1 rounded text-[10px] transition-colors ${
+              title="Spaced repetition recall"
+              className={`font-mono min-h-[28px] shrink-0 rounded px-2 text-[9px] transition-colors sm:text-[10px] ${
                 sidebarView === 'memoryStats' ? 'bg-surface-elevated text-accent' : 'text-text-muted hover:text-text-primary'
               }`}
               aria-pressed={sidebarView === 'memoryStats'}
@@ -817,7 +835,6 @@ export function Sidebar() {
             </button>
           </div>
           <div className="h-px bg-accent/40" />
-          <SearchBar />
         </div>
         <div
           className={
@@ -837,6 +854,9 @@ export function Sidebar() {
           )}
           {sidebarView === 'stats' && (
             <StatsDashboard memories={memories} />
+          )}
+          {sidebarView === 'moodStats' && (
+            <MoodStatsDashboard memories={memories} />
           )}
           {sidebarView === 'memoryStats' && (
             <MemoryStatsDashboard memories={memories} recallSessions={recallSessions} />

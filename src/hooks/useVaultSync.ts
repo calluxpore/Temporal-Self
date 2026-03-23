@@ -134,6 +134,7 @@ export function useVaultSync() {
       const current = useMemoryStore.getState();
       useMemoryStore.setState({
         theme: res.settings.theme ?? current.theme,
+        mapStyle: res.settings.mapStyle ?? current.mapStyle,
         mapView: res.settings.mapView === undefined ? current.mapView : res.settings.mapView,
         hasChosenStartLocation:
           res.settings.hasChosenStartLocation ?? current.hasChosenStartLocation,
@@ -159,6 +160,7 @@ export function useVaultSync() {
         dateFilterTo:
           res.settings.dateFilterTo === undefined ? current.dateFilterTo : res.settings.dateFilterTo,
         heatmapEnabled: res.settings.heatmapEnabled ?? current.heatmapEnabled,
+        moodHeatmapEnabled: res.settings.moodHeatmapEnabled ?? current.moodHeatmapEnabled,
         markersVisible: res.settings.markersVisible ?? current.markersVisible,
         sidebarView: res.settings.sidebarView ?? current.sidebarView,
       });

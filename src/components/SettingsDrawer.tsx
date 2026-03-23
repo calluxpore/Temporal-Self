@@ -54,6 +54,24 @@ export function SettingsDrawer() {
   }, [open, setSettingsDrawerOpen]);
 
   const displayError = localError || vaultLastSyncError;
+  const canOpenVaultFolder = hasVaultLocation;
+
+  const handleOpenVaultFolder = async () => {
+    if (!canOpenVaultFolder) return;
+    if (isElectron) {
+      const root = vaultElectronPath?.trim();
+      if (!root) return;
+      const res = await window.temporalVault?.openFolder(root);
+      if (!res || !res.ok) {
+        const fallback = res && 'error' in res ? res.error : 'Could not open vault folder.';
+        window.alert(fallback);
+      }
+      return;
+    }
+    // Browsers cannot reveal/open real filesystem paths directly.
+    // Best fallback: reopen directory picker for quick access.
+    await chooseFolder();
+  };
 
   if (!open) return null;
 
@@ -168,6 +186,18 @@ export function SettingsDrawer() {
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
+                disabled={busy || !canOpenVaultFolder}
+                onClick={() => void handleOpenVaultFolder()}
+                className="touch-target flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-border bg-surface-elevated px-2.5 text-text-primary transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Open vault folder"
+                title={isElectron ? 'Open vault folder' : 'Open linked vault folder'}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M3 6.5a1.5 1.5 0 0 1 1.5-1.5h4L10 7h9.5A1.5 1.5 0 0 1 21 8.5v8A1.5 1.5 0 0 1 19.5 18h-15A1.5 1.5 0 0 1 3 16.5z" />
+                </svg>
+              </button>
+              <button
+                type="button"
                 disabled={busy || !hasVaultLocation}
                 onClick={() => void runSaveNow()}
                 className="font-mono min-h-[44px] rounded-lg border border-border bg-accent px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
@@ -241,8 +271,24 @@ export function SettingsDrawer() {
                     <td className="px-3 py-2 text-text-primary">Toggle heatmap</td>
                   </tr>
                   <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + T</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle map style</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + G</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle mood heatmap</td>
+                  </tr>
+                  <tr className="border-b border-border">
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + M</td>
                     <td className="px-3 py-2 text-text-primary">Toggle markers</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + L</td>
+                    <td className="px-3 py-2 text-text-primary">Switch to list view</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + K</td>
+                    <td className="px-3 py-2 text-text-primary">Switch to calendar view</td>
                   </tr>
                   <tr className="border-b border-border">
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + E</td>

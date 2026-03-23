@@ -1,5 +1,11 @@
 import type { Group, Memory } from '../types/memory';
-import { memoryToVaultMarkdown, collectMemoryImagePaths, vaultMemoryFilename, VAULT_README } from './vaultMarkdown';
+import {
+  memoryToVaultMarkdown,
+  collectMemoryImagePaths,
+  collectMemoryVoiceNote,
+  vaultMemoryFilename,
+  VAULT_README,
+} from './vaultMarkdown';
 import { vaultRelative } from './vaultPaths';
 import type { VaultSettings } from './vaultSettings';
 
@@ -39,7 +45,11 @@ export function buildVaultSyncPlan(memories: Memory[], groups: Group[], settings
     for (const b of binaries) {
       writes.push({ path: b.path, kind: 'binary', bytes: b.bytes });
     }
-    const md = memoryToVaultMarkdown(m, relPaths);
+    const voice = collectMemoryVoiceNote(m);
+    if (voice.binary) {
+      writes.push({ path: voice.binary.path, kind: 'binary', bytes: voice.binary.bytes });
+    }
+    const md = memoryToVaultMarkdown(m, relPaths, voice.relPath);
     writes.push({
       path: `${vaultRelative.memories}/${vaultMemoryFilename(m)}`,
       kind: 'utf8',

@@ -5,6 +5,7 @@ type TopControlVariant = 'fixed' | 'bar';
 export function MarkersToggle({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const markersVisible = useMemoryStore((s) => s.markersVisible);
   const setMarkersVisible = useMemoryStore((s) => s.setMarkersVisible);
+  const activeClasses = markersVisible ? 'border-accent bg-accent-glow text-accent' : '';
 
   return (
     <div
@@ -22,8 +23,9 @@ export function MarkersToggle({ variant = 'fixed' }: { variant?: TopControlVaria
       <button
         type="button"
         onClick={() => setMarkersVisible(!markersVisible)}
-        className="flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
+        className={`flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${activeClasses}`}
         aria-label={markersVisible ? 'Hide markers and names' : 'Show markers and names'}
+        aria-pressed={markersVisible}
         title="Markers (Alt+M)"
       >
         <svg
@@ -35,7 +37,7 @@ export function MarkersToggle({ variant = 'fixed' }: { variant?: TopControlVaria
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-text-secondary"
+          className={markersVisible ? 'text-accent' : 'text-text-secondary'}
         >
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
           <circle cx="12" cy="10" r="3" />

@@ -11,6 +11,22 @@ interface CalendarViewProps {
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+type CalendarMonth = { year: number; month: number };
+type MonthGrid = {
+  key: string;
+  year: number;
+  month: number;
+  title: string;
+  firstWeekday: number;
+  days: { date: string; day: number; count: number }[];
+};
+
+function addMonth(base: CalendarMonth, delta: number): CalendarMonth {
+  const dt = new Date(base.year, base.month + delta, 1);
+  return { year: dt.getFullYear(), month: dt.getMonth() };
+}
 
 export function CalendarView({
   memories,
@@ -24,22 +40,6 @@ export function CalendarView({
     return { year: d.getFullYear(), month: d.getMonth() };
   });
 
-  const { days, firstWeekday } = useMemo(() => {
-    const y = cursor.year;
-    const m = cursor.month;
-    const first = new Date(y, m, 1);
-    const last = new Date(y, m + 1, 0);
-    const firstWeekday = first.getDay();
-    const daysInMonth = last.getDate();
-    const days: { date: string; day: number; count: number }[] = [];
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      const count = memories.filter((mem) => mem.date === date).length;
-      days.push({ date, day: i, count });
-    }
-    return { days, firstWeekday };
-  }, [cursor.year, cursor.month, memories]);
-
   const memoriesByDate = useMemo(() => {
     const map = new Map<string, Memory[]>();
     for (const m of memories) {
@@ -49,6 +49,37 @@ export function CalendarView({
     }
     return map;
   }, [memories]);
+
+  const countsByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of memories) {
+      map.set(m.date, (map.get(m.date) ?? 0) + 1);
+    }
+    return map;
+  }, [memories]);
+
+  const monthGrids = useMemo<MonthGrid[]>(() => {
+    const months = [addMonth(cursor, -1), cursor, addMonth(cursor, 1)];
+    return months.map(({ year, month }) => {
+      const first = new Date(year, month, 1);
+      const last = new Date(year, month + 1, 0);
+      const firstWeekday = first.getDay();
+      const daysInMonth = last.getDate();
+      const days: { date: string; day: number; count: number }[] = [];
+      for (let i = 1; i <= daysInMonth; i++) {
+        const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        days.push({ date, day: i, count: countsByDate.get(date) ?? 0 });
+      }
+      return {
+        key: `${year}-${String(month + 1).padStart(2, '0')}`,
+        year,
+        month,
+        title: `${MONTHS[month]} ${year}`,
+        firstWeekday,
+        days,
+      };
+    });
+  }, [cursor, countsByDate]);
 
   const prevMonth = () => {
     setCursor((c) =>
@@ -62,8 +93,8 @@ export function CalendarView({
   };
 
   return (
-    <div className="py-2">
-      <div className="flex items-center justify-between gap-1 border-b border-border pb-1.5">
+    <div className="py-1">
+      <div className="flex items-center justify-between gap-1 border-b border-border pb-1">
         <button
           type="button"
           onClick={prevMonth}
@@ -74,9 +105,7 @@ export function CalendarView({
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <span className="font-mono text-xs font-medium text-text-primary">
-          {MONTHS[cursor.month]} {cursor.year}
-        </span>
+        <span className="font-mono text-xs font-medium text-text-primary">3-month view</span>
         <button
           type="button"
           onClick={nextMonth}
@@ -88,44 +117,64 @@ export function CalendarView({
           </svg>
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-px text-center font-mono text-[10px] text-text-muted">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-          <div key={`day-${i}`} className="py-0.5">
-            {d}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-px">
-        {Array.from({ length: firstWeekday }, (_, i) => (
-          <div key={`pad-${i}`} className="aspect-square" />
-        ))}
-        {days.map(({ date, day, count }) => {
-          const hasMemories = count > 0;
-          const isSelected = selectedDateFrom === date && selectedDateTo === date;
+      <div className="mt-1 grid h-[min(67vh,600px)] grid-rows-3 gap-1">
+        {monthGrids.map((grid, i) => {
+          const isCurrent = i === 1;
+          const usedSlots = grid.firstWeekday + grid.days.length;
+          const trailingSlots = Math.max(0, 42 - usedSlots);
           return (
             <div
-              key={date}
-              className="relative aspect-square min-h-[28px] rounded border border-transparent bg-surface-elevated/50 p-0.5"
+              key={grid.key}
+              className={`min-h-0 rounded-lg border bg-surface-elevated/40 p-1 ${
+                isCurrent ? 'border-accent ring-1 ring-accent/50' : 'border-border'
+              }`}
             >
-              <button
-                type="button"
-                onClick={() => onDateFilter(date, date)}
-                className={`flex h-full w-full flex-col items-center justify-center rounded text-[10px] transition-colors ${
-                  hasMemories
-                    ? 'cursor-pointer text-accent hover:bg-accent-glow'
-                    : 'cursor-pointer text-text-muted hover:bg-surface-elevated'
-                } ${isSelected ? 'ring-1 ring-accent' : ''}`}
-                title={hasMemories ? `${count} memory(ies) – click to filter` : 'Click to filter by this date'}
-              >
-                <span>{day}</span>
-                <span
-                  aria-hidden
-                  className={`mt-0.5 h-1.5 w-1.5 rounded-full ${
-                    hasMemories ? 'bg-accent/90' : 'bg-transparent'
-                  }`}
-                />
-                {count > 0 && <span className="text-[8px] opacity-80">{count}</span>}
-              </button>
+              <div className="mb-0.5 text-center font-mono text-[10px] font-medium leading-none text-text-primary">{grid.title}</div>
+              <div className="grid grid-cols-7 gap-px text-center font-mono text-[9px] leading-none text-text-muted">
+                {WEEKDAY_LABELS.map((d, idx) => (
+                  <div key={`${grid.key}-wd-${idx}`} className="py-0.5">
+                    {d}
+                  </div>
+                ))}
+              </div>
+              <div className="grid h-[calc(100%-30px)] min-h-0 grid-cols-7 auto-rows-fr gap-px">
+                {Array.from({ length: grid.firstWeekday }, (_, padIdx) => (
+                  <div key={`${grid.key}-pad-${padIdx}`} className="min-h-0" />
+                ))}
+                {grid.days.map(({ date, day, count }) => {
+                  const hasMemories = count > 0;
+                  const isSelected = selectedDateFrom === date && selectedDateTo === date;
+                  return (
+                    <div
+                      key={date}
+                      className="relative min-h-0 rounded border border-transparent bg-surface-elevated/50 p-[1px]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onDateFilter(date, date)}
+                        className={`relative flex h-full w-full min-h-0 items-center justify-center rounded text-[9px] leading-none transition-colors ${
+                          hasMemories
+                            ? 'cursor-pointer text-accent hover:bg-accent-glow'
+                            : 'cursor-pointer text-text-muted hover:bg-surface-elevated'
+                        } ${isSelected ? 'ring-1 ring-accent' : ''}`}
+                        title={hasMemories ? `${count} memory(ies) – click to filter` : 'Click to filter by this date'}
+                      >
+                        <span>{day}</span>
+                        <span
+                          aria-hidden
+                          className={`absolute bottom-[1px] left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${
+                            hasMemories ? 'bg-accent/90' : 'bg-transparent'
+                          }`}
+                        />
+                        {count > 0 && <span className="absolute top-[1px] right-[1px] text-[7px] leading-none opacity-80">{count}</span>}
+                      </button>
+                    </div>
+                  );
+                })}
+                {Array.from({ length: trailingSlots }, (_, tailIdx) => (
+                  <div key={`${grid.key}-tail-${tailIdx}`} className="min-h-0" />
+                ))}
+              </div>
             </div>
           );
         })}
@@ -138,7 +187,7 @@ export function CalendarView({
             <div className="font-mono mb-1 text-[10px] text-text-muted">
               {list.length} memory(ies) on {selectedDateFrom}
             </div>
-            <ul className="max-h-32 space-y-0.5 overflow-y-auto">
+            <ul className="max-h-[min(40vh,360px)] space-y-0.5 overflow-y-auto">
               {list.map((m) => (
                 <li key={m.id}>
                   <button

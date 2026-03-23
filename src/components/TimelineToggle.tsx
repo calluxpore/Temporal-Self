@@ -5,6 +5,7 @@ type TopControlVariant = 'fixed' | 'bar';
 export function TimelineToggle({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const timelineEnabled = useMemoryStore((s) => s.timelineEnabled);
   const setTimelineEnabled = useMemoryStore((s) => s.setTimelineEnabled);
+  const activeClasses = timelineEnabled ? 'border-accent bg-accent-glow text-accent' : '';
 
   const toggle = () => {
     setTimelineEnabled(!timelineEnabled);
@@ -26,8 +27,9 @@ export function TimelineToggle({ variant = 'fixed' }: { variant?: TopControlVari
       <button
         type="button"
         onClick={toggle}
-        className="flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
+        className={`flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${activeClasses}`}
         aria-label={timelineEnabled ? 'Hide timeline' : 'Show timeline'}
+        aria-pressed={timelineEnabled}
         title="Path (Alt+P)"
       >
         <svg
@@ -39,7 +41,7 @@ export function TimelineToggle({ variant = 'fixed' }: { variant?: TopControlVari
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-text-secondary"
+          className={timelineEnabled ? 'text-accent' : 'text-text-secondary'}
         >
           {/* Smooth path through points (timeline/route) */}
           <path d="M4 17c2-2 4-4 6-4s4 2 6 4 2 3 4 3" />

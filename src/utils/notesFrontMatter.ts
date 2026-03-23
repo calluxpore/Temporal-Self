@@ -103,7 +103,7 @@ export function serializeNotesFrontMatter(frontMatter: NotesFrontMatter, body: s
   if (date) parts.push(`date: "${escapeYamlDoubleQuoted(date)}"`);
 
   const location = frontMatter.location?.trim();
-  if (location) parts.push(`location: "${escapeYamlDoubleQuoted(location)}"`);
+  if (location) parts.push(`location: ${location}`);
 
   if (frontMatter.tags !== undefined) {
     const tags = frontMatter.tags.map(normalizeTagForYaml).filter(Boolean);

@@ -12,6 +12,7 @@ import { parseNotesFrontMatter } from '../utils/notesFrontMatter';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Memory } from '../types/memory';
 import { memoryNoteDisplayName } from '../utils/vaultMarkdown';
+import { moodOption } from '../utils/memoryMoods';
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -122,6 +123,7 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
   const displayDate = parsed.frontMatter.date ?? memory.date;
   const displayTags = parsed.frontMatter.tags ?? memory.tags ?? [];
   const displayLinks = parsed.frontMatter.links ?? memory.links ?? [];
+  const moodInfo = memory.mood ? moodOption(memory.mood) : undefined;
   const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng);
 
   useEffect(() => {
@@ -167,6 +169,14 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
           <p className="font-mono mt-2 text-sm text-text-secondary">
             {formatDate(displayDate, true)}
           </p>
+          {moodInfo && (
+            <p className="font-mono mt-2 text-sm text-text-muted" title={moodInfo.description}>
+              <span className="mr-1.5" aria-hidden>
+                {moodInfo.emoji}
+              </span>
+              Mood: {moodInfo.label}
+            </p>
+          )}
           {(parsed.frontMatter.location ?? location) && (
             <p className="font-mono mt-1 text-sm text-text-primary/90" title="Location">
               {parsed.frontMatter.location ?? (locationLoading ? '…' : location ?? '')}
@@ -353,6 +363,16 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
               {imageIndex + 1} / {images.length}
             </span>
           </>
+        )}
+        {memory.audioDataUrl && (
+          <div
+            className={`pointer-events-auto absolute right-2 z-[3] max-w-[min(92%,280px)] rounded-lg border border-border bg-surface/95 p-2 shadow-lg backdrop-blur-sm ${
+              images.length > 1 ? 'bottom-10' : 'bottom-2'
+            }`}
+          >
+            <p className="mb-1 font-mono text-[9px] uppercase tracking-wide text-text-muted">Voice note</p>
+            <audio src={memory.audioDataUrl} controls className="h-9 w-full" preload="metadata" />
+          </div>
         )}
       </div>
     </div>

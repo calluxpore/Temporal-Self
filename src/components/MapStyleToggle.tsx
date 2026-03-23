@@ -2,10 +2,12 @@ import { useMemoryStore } from '../store/memoryStore';
 
 type TopControlVariant = 'fixed' | 'bar';
 
-export function HeatmapToggle({ variant = 'fixed' }: { variant?: TopControlVariant }) {
-  const heatmapEnabled = useMemoryStore((s) => s.heatmapEnabled);
-  const setHeatmapEnabled = useMemoryStore((s) => s.setHeatmapEnabled);
-  const activeClasses = heatmapEnabled ? 'border-accent bg-accent-glow text-accent' : '';
+export function MapStyleToggle({ variant = 'fixed' }: { variant?: TopControlVariant }) {
+  const mapStyle = useMemoryStore((s) => s.mapStyle);
+  const setMapStyle = useMemoryStore((s) => s.setMapStyle);
+  const isWatercolor = mapStyle === 'watercolor';
+  const activeClasses = isWatercolor ? 'border-accent bg-accent-glow text-accent' : '';
+  const hotkeyLabel = 'Alt+T';
 
   return (
     <div
@@ -14,7 +16,7 @@ export function HeatmapToggle({ variant = 'fixed' }: { variant?: TopControlVaria
         variant === 'bar'
           ? undefined
           : {
-              top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 280px)',
+              top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 196px)',
               left: '50%',
               transform: 'translateX(-50%)',
             }
@@ -22,11 +24,11 @@ export function HeatmapToggle({ variant = 'fixed' }: { variant?: TopControlVaria
     >
       <button
         type="button"
-        onClick={() => setHeatmapEnabled(!heatmapEnabled)}
+        onClick={() => setMapStyle(isWatercolor ? 'default' : 'watercolor')}
         className={`flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${activeClasses}`}
-        aria-label={heatmapEnabled ? 'Hide heatmap' : 'Show heatmap'}
-        aria-pressed={heatmapEnabled}
-        title="Heatmap (Alt+H)"
+        aria-label={isWatercolor ? 'Switch to default map style' : 'Switch to watercolor map style'}
+        aria-pressed={isWatercolor}
+        title={`Map style (${hotkeyLabel})`}
       >
         <svg
           width="22"
@@ -35,21 +37,22 @@ export function HeatmapToggle({ variant = 'fixed' }: { variant?: TopControlVaria
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
-          className={heatmapEnabled ? 'text-accent' : 'text-text-secondary'}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={isWatercolor ? 'text-accent' : 'text-text-secondary'}
         >
-          <circle cx="12" cy="12" r="10" opacity="0.3" />
-          <circle cx="12" cy="12" r="6" opacity="0.5" />
-          <circle cx="12" cy="12" r="2" />
+          <path d="M3 7.5 8.5 5l7 3 5.5-2.5v11L15.5 19l-7-3L3 18.5z" />
+          <path d="M8.5 5v11M15.5 8v11" />
         </svg>
       </button>
       <span
         className={
           variant === 'bar'
-            ? 'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+            ? 'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
             : 'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
         }
       >
-        Heatmap (Alt+H)
+        Map style ({hotkeyLabel})
       </span>
     </div>
   );

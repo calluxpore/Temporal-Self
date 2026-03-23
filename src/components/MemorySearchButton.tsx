@@ -9,6 +9,7 @@ export function MemorySearchButton({ variant = 'fixed' }: { variant?: TopControl
   const memorySearchDrawerOpen = useMemoryStore((s) => s.memorySearchDrawerOpen);
   const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
   const setSettingsDrawerOpen = useMemoryStore((s) => s.setSettingsDrawerOpen);
+  const activeClasses = memorySearchDrawerOpen ? 'border-accent bg-accent-glow text-accent' : '';
 
   return (
     <div
@@ -29,10 +30,7 @@ export function MemorySearchButton({ variant = 'fixed' }: { variant?: TopControl
           setSettingsDrawerOpen(false);
           setMemorySearchDrawerOpen(!memorySearchDrawerOpen);
         }}
-        className={
-          'flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95' +
-          (memorySearchDrawerOpen ? ' border-accent bg-surface-elevated' : '')
-        }
+        className={`flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${activeClasses}`}
         aria-label={memorySearchDrawerOpen ? 'Close memory search' : 'Search memories'}
         aria-pressed={memorySearchDrawerOpen}
         title="Search (Ctrl+S)"
@@ -46,7 +44,7 @@ export function MemorySearchButton({ variant = 'fixed' }: { variant?: TopControl
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-text-secondary"
+          className={memorySearchDrawerOpen ? 'text-accent' : 'text-text-secondary'}
           aria-hidden
         >
           <circle cx="11" cy="11" r="7" />

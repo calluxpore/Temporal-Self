@@ -132,6 +132,69 @@ export function svgRecallDonut(remembered: number, forgot: number): string {
 </svg>`;
 }
 
+/** Mood distribution: horizontal bars (labels ASCII; no emoji for PDF font safety). */
+export function svgMoodDistribution(
+  items: { label: string; count: number; pct: number }[],
+  maxCount: number
+): string {
+  if (items.length === 0) return svgPlaceholder('No mood data');
+  const barH = 20;
+  const gap = 8;
+  const chartH = items.length * (barH + gap) - gap;
+  const chartW = W - PAD * 2;
+  const maxBarW = Math.max(1, chartW - 100);
+
+  const bars = items
+    .map((item, i) => {
+      const y = PAD + i * (barH + gap);
+      const w = maxCount > 0 ? (item.count / maxCount) * maxBarW : 0;
+      const label = item.label.length > 14 ? item.label.slice(0, 12) + '…' : item.label;
+      return `
+        <text x="${PAD}" y="${y + barH / 2 + 4}" fill="${TEXT_COLOR}" font="${FONT}">${escapeXml(label)}</text>
+        <rect x="${PAD + 78}" y="${y}" width="${maxBarW}" height="${barH}" fill="#e2e8f0" rx="4"/>
+        <rect x="${PAD + 78}" y="${y}" width="${w}" height="${barH}" fill="${BAR_ACCENT}" rx="4"/>
+        <text x="${PAD + 78 + maxBarW + 4}" y="${y + barH / 2 + 4}" fill="${TEXT_COLOR}" font="12px system-ui" text-anchor="end">${item.count} (${item.pct}%)</text>
+      `;
+    })
+    .join('');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${PAD + chartH + PAD}" width="${W}" height="${PAD + chartH + PAD}">
+  ${bars}
+</svg>`;
+}
+
+/** Valence scale −2 … +2 with marker for average (for tagged memories). */
+export function svgMoodValenceScale(avgValence: number): string {
+  const chartH = 56;
+  const lineY = 36;
+  const lineX0 = PAD;
+  const lineX1 = W - PAD;
+  const lineW = lineX1 - lineX0;
+  const t = (avgValence + 2) / 4;
+  const cx = lineX0 + Math.max(0, Math.min(1, t)) * lineW;
+
+  const labels = ['-2', '-1', '0', '+1', '+2'];
+  const tickXs = [0, 0.25, 0.5, 0.75, 1].map((p) => lineX0 + p * lineW);
+
+  const ticks = tickXs
+    .map((x, i) => {
+      return `
+        <line x1="${x}" y1="${lineY - 4}" x2="${x}" y2="${lineY + 4}" stroke="${AXIS_COLOR}" stroke-width="1"/>
+        <text x="${x}" y="${lineY + 18}" fill="#64748b" font="10px system-ui" text-anchor="middle">${labels[i]}</text>
+      `;
+    })
+    .join('');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${chartH}" width="${W}" height="${chartH}">
+  <text x="${PAD}" y="16" fill="${TEXT_COLOR}" font="12px system-ui">Average valence (${avgValence.toFixed(2)})</text>
+  <line x1="${lineX0}" y1="${lineY}" x2="${lineX1}" y2="${lineY}" stroke="${AXIS_COLOR}" stroke-width="2"/>
+  ${ticks}
+  <circle cx="${cx}" cy="${lineY}" r="7" fill="${BAR_ACCENT}" stroke="#fff" stroke-width="2"/>
+</svg>`;
+}
+
 /** Stacked bar chart: each cycle = one bar (remembered + forgot). */
 export function svgRecallByCycle(sessions: { remembered: number; forgot: number }[]): string {
   if (sessions.length === 0) return svgPlaceholder('No recall cycles yet');

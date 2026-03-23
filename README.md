@@ -64,24 +64,30 @@ There is **no automated test script** in `package.json` today; rely on lint, typ
 
 ## Core features
 
-- **Map-first journaling**: click map to add memories with title, date, notes, location, photos, tags, links, and icon/emoji label.
-- **Calendar-first history entry**: click any date in Calendar view, then add memories to that selected date.
+- **Map-first journaling**: click map to add memories with title, date, notes, photos, tags, links, icon/emoji label, optional **mood** (five emoji buttons), and optional **voice note**. The editor now has an inline Mood + Voice toolbar: record button plus compact player in the same row, with the player always visible (greyed when no audio, active when audio exists). Vault sync writes voice files to `Temporal-Self/attachments/<memory-id>/voice.*` and stores `audio:` in note YAML.
+- **Calendar-first history entry**: click any date in the compact **3-month Calendar view** (previous/current/next stacked), then add memories to that selected date.
 - **Date visibility cues**: Calendar dates with memories show dot/count indicators.
 - **Markdown notes**: memory notes support Markdown (GFM-style) in the editor.
-- **Organization**: groups, collapse/hide groups, drag reorder, default group, starred favorites, and bulk actions.
-- **Map layers and filters**: search, date filter, favorites filter, timeline path, heatmap, marker visibility toggle.
+- **Organization**: groups, collapse/hide groups, drag reorder, default group, starred favorites, and bulk actions. Group picker has fixed width in the editor for stable layout, and group names are capped at 6 characters.
+- **Map layers and filters**: search, date filter, favorites filter, timeline path, classic intensity heatmap, **mood heatmap** (color-coded by mood), and marker visibility toggle.
+- **Map style toggle**: switch map tiles between the default (light/dark) style and a Voyager raster style (Carto; `subdomains="abcd"`) using the top-bar “Map style” button after Search.
+- **Top-bar toggle clarity**: active map/search toggles now share a consistent highlighted state (accent border + glow + icon tint) so ON/OFF status is easy to read in both dark and light themes.
 - **Drag memories on the map**: hover a memory to open its photo card, grab the top-right corner to move it; connected timeline polylines update live (Spline or Straight/orthogonal rounded corners), with a focus crosshair shown at the current drag target. Undo is captured once per drag.
 - **Keyboard shortcuts** (when not typing in inputs): see list below for map controls, plus **N** new memory, **/** focus search, **Escape** close selection/modals, **Ctrl+Z** / **Ctrl+Shift+Z** undo/redo.
-- **Recall practice (SM-2)**: due-based spaced repetition with session stats (`I remember` / `Show me` / skip flow).
-- **Stats dashboards**:
-  - General stats (totals, places, starred, photos, by year/month, date-wise memories)
-  - Recall stats (score, due/scheduled, cycle performance)
+- **Recall practice (SM-2)**: due-based spaced repetition with session stats (`I remember` / `Show me` / skip flow). Recall dialog hotkeys use **Escape** to close; dedicated `R` / `M` answer hotkeys were removed.
+- **Stats dashboards** (sidebar tabs):
+  - **Memory stats** — totals, places, starred, photos, by year/month, date-wise memories (plus Study panel)
+  - **Mood stats** — emotion coverage, valence, balance, diversity (entropy), per-mood distribution, monthly/yearly trends, weekday & group breakdowns, narrative insights
+  - **Recall stats** — score, due/scheduled, cycle performance
 - **Styled screenshot export**: rounded card frame, theme-aware border/text, timestamp, timeline+markers forced on, map controls hidden.
-- **PDF report generation**: branded cover with logo and timestamp, plus overview, date/group distribution, and recall analytics.
+- **PDF report generation**: branded cover with logo and timestamp, plus overview, date/group distribution, **mood & emotion** (coverage, distribution chart, valence scale, balance, entropy, dominant mood), study table (if used), and recall analytics.
+- **Memory viewer enhancements**: mood is shown directly in the viewer header, and voice notes can be played from an inline audio player on the memory card.
 - **First-visit splash screen**: branded splash shown once per browser profile, dismiss on click.
-- **Onboarding overlay**: multi-step tour (map, list/groups, calendar, stats, recall) with skip/next.
+- **Onboarding overlay**: multi-step tour (map, list/groups, calendar, memory stats, mood stats, recall stats) with skip/next.
 - **Right-rail controls with hover tooltips**: quick-access icons for theme/recall/reset/layers/export/import/screenshot/report/contact.
-- **Research study support (Study panel)**: optional study logging in the Stats tab (participant ID + checkpoint tag + completion time) and an exportable event log for longitudinal analysis.
+- **Research study support (Study panel)**: optional study logging in the Memory stats tab (participant ID + checkpoint tag + completion time) and an exportable event log for longitudinal analysis.
+- **Vault convenience in Settings**: when a vault is linked, Settings includes an **Open vault folder** action (Electron opens it in the OS file explorer).
+- **Vault markdown location format**: exported memory notes keep location inside YAML front matter as raw coordinates, e.g. `location: 42.98324945220888, -81.25033468246303` (legacy body `**Location:** ...` lines are cleaned during sync).
 
 ---
 
@@ -97,7 +103,11 @@ There is **no automated test script** in `package.json` today; rely on lint, typ
 - `Ctrl + S` — open memory search
 - `Alt + P` — toggle timeline path
 - `Alt + H` — toggle heatmap
+- `Alt + T` — toggle map style
+- `Alt + G` — toggle mood heatmap
 - `Alt + M` — toggle markers
+- `Alt + L` — switch sidebar to list view
+- `Alt + K` — switch sidebar to calendar view
 - `Alt + E` — open export menu
 - `Alt + I` — open import file picker
 - `Ctrl + I` — save map screenshot
@@ -123,7 +133,9 @@ JSON is designed to preserve full data and app state, including:
 
 - Memories, groups, map coordinates, dates, notes
 - Images (embedded data URLs)
+- Voice notes (embedded audio data URLs)
 - Custom labels/icons, tags, links, starred
+- Mood labels (`radiant`, `content`, `neutral`, `concerned`, `distraught`)
 - Visibility/order/group assignment
 - Recall scheduling fields and recall session history
 - App preferences (theme, map view, start-location preference, sidebar width, etc.)
@@ -135,13 +147,13 @@ JSON is designed to preserve full data and app state, including:
 ### CSV backup (limited)
 
 CSV is for tabular memory data only and is **not** full-fidelity.  
-It does not preserve images and many rich metadata fields.
+It includes core fields plus mood, but does not preserve images, voice notes, and many rich metadata fields.
 
 ---
 
 ## Research workflow (optional)
 
-If you are running a longitudinal study (for example at 2 days, 2 weeks, and 40 days), you can use the optional **Study panel** inside the **Stats** tab:
+If you are running a longitudinal study (for example at 2 days, 2 weeks, and 40 days), you can use the optional **Study panel** inside the **Memory stats** tab:
 
 1. Enter a **Participant ID** (e.g. `P01`).
 2. Select the **Checkpoint** (Baseline / 2D / 2W / 40D).
@@ -186,6 +198,9 @@ If you are running a longitudinal study (for example at 2 days, 2 weeks, and 40 
 - `src/utils/spacedRepetition.ts` — SM-2 recall scheduling
 - `src/utils/exportImport.ts` — JSON/CSV backup and restore
 - `src/utils/generateReport.ts` — PDF report generator
+- `src/utils/memoryMoods.ts` — mood taxonomy, labels, valence mapping, parser helpers
+- `src/utils/moodReportStats.ts` — mood coverage / valence / entropy snapshot for PDF (and aligns with Mood stats tab)
+- `src/utils/voiceNote.ts` — MediaRecorder helpers (capability checks, MIME choice, blob→data URL)
 - `src/utils/idbStorage.ts` — IndexedDB adapter and migration utilities
 - `electron/main.cjs` — desktop window/app lifecycle
 - `vite.config.ts` — web/electron build config and PWA setup
@@ -242,6 +257,8 @@ npm run electron:build
 ```
 
 Artifacts are written to `release/` (including unpacked app and Windows installer/portable outputs, per `package.json` → `build`).
+
+Electron preload also exposes vault helpers used by Settings, including opening the linked vault folder directly from the app.
 
 ---
 

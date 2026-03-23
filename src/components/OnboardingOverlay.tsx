@@ -9,7 +9,7 @@ interface OnboardingOverlayProps {
   onSkip: () => void;
 }
 
-const STEPS: { title: string; body: string; sidebarView?: 'list' | 'calendar' | 'stats' | 'memoryStats' }[] = [
+const STEPS: { title: string; body: string; sidebarView?: 'list' | 'calendar' | 'stats' | 'moodStats' | 'memoryStats' }[] = [
   {
     title: 'Welcome to Temporal Self',
     body: 'You will pin memories to places, explore them by date, and practise recalling them later.',
@@ -29,14 +29,23 @@ const STEPS: { title: string; body: string; sidebarView?: 'list' | 'calendar' | 
     sidebarView: 'calendar',
   },
   {
-    title: 'Stats',
-    body: 'Stats tabs show totals and date-wise breakdown.',
+    title: 'Memory stats',
+    body: 'Memory stats show totals, places, photos, and date-wise breakdown.',
     sidebarView: 'stats',
+  },
+  {
+    title: 'Mood stats',
+    body: 'Mood stats analyze how you felt when capturing memories — balance, diversity, trends, and reflection.',
+    sidebarView: 'moodStats',
   },
   {
     title: 'Recall stats',
     body: 'Recall stats show how often you remembered versus needed hints.',
     sidebarView: 'memoryStats',
+  },
+  {
+    title: 'Choose your vault folder',
+    body: 'Open Settings (Shift+S), then choose a vault folder so Temporal Self can sync Markdown notes and attachments for Obsidian.',
   },
   {
     title: 'Top controls',
@@ -55,11 +64,15 @@ const CARD_POSITIONS: Array<{ top: string; left: string }> = [
   { top: '48%', left: '26%' },
   // Step 3: Calendar (left sidebar)
   { top: '40%', left: '26%' },
-  // Step 4: Stats (left sidebar)
+  // Step 4: Memory stats (left sidebar)
   { top: '40%', left: '26%' },
-  // Step 5: Recall stats (left sidebar)
+  // Step 5: Mood stats (left sidebar)
   { top: '40%', left: '26%' },
-  // Step 6: Right-side controls (top-right)
+  // Step 6: Recall stats (left sidebar)
+  { top: '40%', left: '26%' },
+  // Step 7: Vault in Settings (top-right settings button area)
+  { top: '24%', left: '74%' },
+  // Step 8: Top controls (top-center)
   { top: '28%', left: '50%' },
 ];
 

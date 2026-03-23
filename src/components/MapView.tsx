@@ -10,6 +10,7 @@ import { MemoryMarker } from './MemoryMarker';
 import { MemoryHoverCard } from './MemoryHoverCard';
 import { SetMapRef } from './SetMapRef';
 import { HeatmapLayer } from './HeatmapLayer';
+import { MoodHeatmapLayer } from './MoodHeatmapLayer';
 import type { Memory, Group } from '../types/memory';
 import type { SearchHighlight } from '../store/memoryStore';
 import { getMemoryLabel } from '../utils/memoryLabel';
@@ -60,6 +61,7 @@ const TILE_URLS: Record<'dark' | 'light' | 'satellite' | 'terrain' | 'outdoor', 
   terrain: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
   outdoor: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 };
+const CUSTOM_STYLE_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const DEFAULT_CENTER: [number, number] = [43.6532, -79.3832];
 const DEFAULT_ZOOM = 11;
 
@@ -411,6 +413,7 @@ export function MapView({
   const dateFilterFrom = useMemoryStore((s) => s.dateFilterFrom);
   const dateFilterTo = useMemoryStore((s) => s.dateFilterTo);
   const heatmapEnabled = useMemoryStore((s) => s.heatmapEnabled);
+  const moodHeatmapEnabled = useMemoryStore((s) => s.moodHeatmapEnabled);
   const markersVisible = useMemoryStore((s) => s.markersVisible);
   const visibleMemories = useMemo(() => {
     let list = filterStarred ? memories.filter((m) => m.starred) : memories;
@@ -424,6 +427,7 @@ export function MapView({
   }, [hoveredMemory, visibleMemories]);
   const groups = useMemoryStore((s) => s.groups);
   const theme = useMemoryStore((s) => s.theme);
+  const mapStyle = useMemoryStore((s) => s.mapStyle);
   const pendingLatLng = useMemoryStore((s) => s.pendingLatLng);
   const searchHighlight = useMemoryStore((s) => s.searchHighlight);
   const timelineEnabled = useMemoryStore((s) => s.timelineEnabled);
@@ -462,7 +466,12 @@ export function MapView({
     if (!memorySearchMatchIds?.length) return null;
     return new Set(memorySearchMatchIds);
   }, [memorySearchMatchIds]);
-  const tileUrl = theme === 'dark' ? TILE_URLS.dark : TILE_URLS.light;
+  const tileUrl =
+    mapStyle === 'watercolor'
+      ? CUSTOM_STYLE_TILE_URL
+      : theme === 'dark'
+        ? TILE_URLS.dark
+        : TILE_URLS.light;
 
   const closeHoverCard = useCallback(() => {
     cardPinnedBySidebarRef.current = false;
@@ -731,8 +740,9 @@ export function MapView({
       >
         <SetMapRef />
         <ZoomControlPlacement />
-        <TileLayer url={tileUrl} />
+        <TileLayer url={tileUrl} subdomains="abcd" />
         <HeatmapLayer memories={visibleMemories} enabled={heatmapEnabled} />
+        <MoodHeatmapLayer memories={visibleMemories} enabled={moodHeatmapEnabled} />
         <MapContent
           memories={visibleMemories}
           groups={groups}

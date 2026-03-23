@@ -1,4 +1,5 @@
 import type { Memory, Group } from '../types/memory';
+import { parseMemoryMood } from './memoryMoods';
 import type { StudyCheckpointTag, StudyEvent } from '../types/study';
 
 const EXPORT_JSON_VERSION = 1;
@@ -72,6 +73,7 @@ const CSV_HEADERS = [
   'hidden',
   'order',
   'customLabel',
+  'mood',
 ];
 
 function escapeCsvCell(value: string): string {
@@ -98,6 +100,7 @@ export function exportToCsv(memories: Memory[]): void {
         m.hidden ? '1' : '0',
         String(m.order ?? ''),
         escapeCsvCell(m.customLabel ?? ''),
+        escapeCsvCell(m.mood ?? ''),
       ].join(',')
     );
   }
@@ -162,6 +165,8 @@ function normalizeMemory(m: unknown): Memory | null {
     intervalDays: typeof o.intervalDays === 'number' ? o.intervalDays : 0,
     easeFactor: typeof o.easeFactor === 'number' ? o.easeFactor : 2.5,
     failedReviewCount: typeof o.failedReviewCount === 'number' ? o.failedReviewCount : 0,
+    mood: parseMemoryMood(o.mood) ?? undefined,
+    audioDataUrl: typeof o.audioDataUrl === 'string' ? o.audioDataUrl : undefined,
   };
 }
 
@@ -299,6 +304,8 @@ export function parseCsvToMemories(text: string): Memory[] {
     const lat = getNum(row, 'lat');
     const lng = getNum(row, 'lng');
     const id = get(row, 'id') || crypto.randomUUID();
+    const moodRaw = get(row, 'mood');
+    const moodParsed = moodRaw ? parseMemoryMood(moodRaw) : null;
     memories.push({
       id,
       lat,
@@ -312,6 +319,7 @@ export function parseCsvToMemories(text: string): Memory[] {
       hidden: get(row, 'hidden') === '1',
       order: getNum(row, 'order') || undefined,
       customLabel: get(row, 'customlabel') || null,
+      ...(moodParsed ? { mood: moodParsed } : {}),
     });
   }
   return memories;
