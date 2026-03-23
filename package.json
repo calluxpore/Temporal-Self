@@ -1,8 +1,8 @@
 {
-  "name": "memory-atlas",
+  "name": "temporal-self",
   "private": true,
   "version": "1.0.0",
-  "description": "Map-based memory journal — pin moments to places, organize in groups, explore on a timeline.",
+  "description": "Temporal Self — map-based memory journal: pin moments to places, organize in groups, explore on a timeline.",
   "author": "",
   "type": "module",
   "main": "electron/main.cjs",

@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const isElectron = process.env.ELECTRON === '1'
-const base = isElectron ? './' : '/Memory-Atlas/'
+const base = isElectron ? './' : '/Temporal-Self/'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,16 +14,16 @@ export default defineConfig({
       : [
           VitePWA({
             registerType: 'autoUpdate',
-            base: '/Memory-Atlas/',
+            base: '/Temporal-Self/',
             manifest: {
-              name: 'Memory Atlas',
-              short_name: 'Memory Atlas',
-              description: 'Map and organize your memories',
+              name: 'Temporal Self',
+              short_name: 'Temporal Self',
+              description: 'Temporal Self — map-based memory journal',
               theme_color: '#0a0a0b',
               background_color: '#0a0a0b',
               display: 'standalone',
-              start_url: '/Memory-Atlas/',
-              scope: '/Memory-Atlas/',
+              start_url: '/Temporal-Self/',
+              scope: '/Temporal-Self/',
               icons: [
                 {
                   src: 'favicon.svg',

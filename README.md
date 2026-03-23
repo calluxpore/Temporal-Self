@@ -42,9 +42,9 @@ Use **Node.js 20+** and **npm 10+** (matches the GitHub Actions workflow).
 
 ### GitHub Pages and the `base` path
 
-The Vite **`base`** and PWA **`start_url` / `scope`** are set to **`/Memory-Atlas/`** in `vite.config.ts`. That must match the path segment where the app is hosted.
+The Vite **`base`** and PWA **`start_url` / `scope`** are set to **`/Temporal-Self/`** in `vite.config.ts` (default repo name). They must match the path segment where the app is hosted.
 
-- If your live URL is `https://<user>.github.io/Temporal-Self/`, change every `/Memory-Atlas/` in `vite.config.ts` to **`/Temporal-Self/`** (or your repo name), then rebuild.
+- If your live URL uses a different path (e.g. `https://<user>.github.io/MyFork/`), change every **`/Temporal-Self/`** in `vite.config.ts` to your segment, then rebuild.
 - The workflow [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) runs `npm ci` and `npm run build`, then uploads **`dist/`** as the Pages artifact. In the repo’s **Settings → Pages**, use **GitHub Actions** as the source (not a legacy `docs/` branch).
 
 ### Optional: `docs/` copy for manual Pages
@@ -59,18 +59,6 @@ The Vite **`base`** and PWA **`start_url` / `scope`** are set to **`/Memory-Atla
 4. Open a pull request with a short description of behavior changes.
 
 There is **no automated test script** in `package.json` today; rely on lint, typecheck, and manual exercise of map, sidebar, recall, and export/import flows.
-
-### Legacy vs display names
-
-Some identifiers predate the **Temporal Self** product name. When aligning branding or forks, you may want to update these together:
-
-| Location | Current note |
-|----------|----------------|
-| `package.json` → `name` | `memory-atlas` |
-| `vite.config.ts` → PWA `manifest` | `name` / `short_name` may still say “Memory Atlas” |
-| `vite.config.ts` → `base` / PWA paths | `/Memory-Atlas/` |
-
-User-facing copy and the Electron window title use **Temporal Self** where updated.
 
 ---
 
@@ -260,11 +248,12 @@ Artifacts are written to `release/` (including unpacked app and Windows installe
 ## PWA and deployment notes
 
 - PWA is enabled only in web mode (not the Electron production build).
-- Default configured base path is `/Memory-Atlas/`; **update `base`, `start_url`, and `scope` in `vite.config.ts`** if you publish under a different repository name or custom domain.
+- Default configured base path is **`/Temporal-Self/`**; **update `base`, `start_url`, and `scope` in `vite.config.ts`** if you publish under a different repository name or custom domain.
 - After changing PWA settings, users may need a fresh load or cache clear to pick up the new service worker.
 
 ---
 
 ## Notes
 
-- Branding is Temporal Self, but some internal technical identifiers still use legacy names for compatibility.
+- **Storage migration**: IndexedDB was renamed from `memory-atlas-db` to `temporal-self-db` (and the Zustand persist key updated). On first load, the app copies prior persist data and vault directory handles from the legacy database when the new one is empty.
+- Geocoding `User-Agent` strings point at this repo; adjust in `LocationSearch.tsx` / `useReverseGeocode.ts` if you fork under another URL.

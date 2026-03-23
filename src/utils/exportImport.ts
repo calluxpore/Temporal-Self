@@ -54,7 +54,7 @@ export function exportToJson(memories: Memory[], groups: Group[], appState?: Exp
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `memory-atlas-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `temporal-self-backup-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -105,7 +105,7 @@ export function exportToCsv(memories: Memory[]): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `memory-atlas-memories-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `temporal-self-memories-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

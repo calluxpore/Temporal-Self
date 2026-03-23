@@ -2,12 +2,12 @@ import { useEffect, useCallback } from 'react';
 import { useMemoryStore } from '../store/memoryStore';
 import { getRecallSessionOrderedIds, isDueForReview } from '../utils/spacedRepetition';
 
-export const FOCUS_SEARCH_EVENT = 'memory-atlas-focus-search';
-export const HOTKEY_RESET_EVENT = 'memory-atlas-hotkey-reset';
-export const HOTKEY_EXPORT_EVENT = 'memory-atlas-hotkey-export';
-export const HOTKEY_IMPORT_EVENT = 'memory-atlas-hotkey-import';
-export const HOTKEY_SHOT_EVENT = 'memory-atlas-hotkey-shot';
-export const HOTKEY_REPORT_EVENT = 'memory-atlas-hotkey-report';
+export const FOCUS_SEARCH_EVENT = 'temporal-self-focus-search';
+export const HOTKEY_RESET_EVENT = 'temporal-self-hotkey-reset';
+export const HOTKEY_EXPORT_EVENT = 'temporal-self-hotkey-export';
+export const HOTKEY_IMPORT_EVENT = 'temporal-self-hotkey-import';
+export const HOTKEY_SHOT_EVENT = 'temporal-self-hotkey-shot';
+export const HOTKEY_REPORT_EVENT = 'temporal-self-hotkey-report';
 
 /** Global keyboard shortcuts: N = new memory, / = focus search, Escape = close modals, Ctrl+Z = undo, Ctrl+Shift+Z = redo. */
 export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {

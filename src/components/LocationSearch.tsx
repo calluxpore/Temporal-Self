@@ -36,7 +36,7 @@ async function searchNominatim(query: string, signal?: AbortSignal): Promise<Geo
     signal,
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'MemoryAtlas/1.0 (https://github.com/memory-atlas)',
+      'User-Agent': 'TemporalSelf/1.0 (https://github.com/Temporal-Self/Temporal-Self)',
     },
   });
   if (!res.ok) return [];

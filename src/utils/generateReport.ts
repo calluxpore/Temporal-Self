@@ -143,7 +143,7 @@ export async function generateReportPdf(
   );
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('A Memory Atlas Project.', pageW / 2, pageH * 0.70, { align: 'center' });
+  doc.text('Temporal Self', pageW / 2, pageH * 0.70, { align: 'center' });
   doc.addPage();
 
   const totalMemories = memories.length;

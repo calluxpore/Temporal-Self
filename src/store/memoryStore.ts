@@ -707,7 +707,7 @@ export const useMemoryStore = create<MemoryState>()(
         })),
     }),
     {
-      name: 'memory-atlas-storage',
+      name: 'temporal-self-storage',
       version: 9,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({

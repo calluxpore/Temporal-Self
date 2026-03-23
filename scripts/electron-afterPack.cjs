@@ -1,6 +1,6 @@
 /**
  * electron-builder afterPack hook: set Windows exe "File description" and
- * "Product name" so Task Manager shows "Memory Atlas" instead of "Electron".
+ * "Product name" so Task Manager shows "Temporal Self" instead of "Electron".
  */
 const path = require('path');
 

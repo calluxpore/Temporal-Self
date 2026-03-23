@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatCoords } from '../utils/formatCoords';
 
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
-const USER_AGENT = 'MemoryAtlas/1.0 (https://github.com/memory-atlas)';
+const USER_AGENT = 'TemporalSelf/1.0 (https://github.com/Temporal-Self/Temporal-Self)';
 
 /** Cache by rounded coords to avoid repeated requests and respect rate limits. */
 const cache = new Map<string, string>();
