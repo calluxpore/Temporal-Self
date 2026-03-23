@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMemoryStore } from '../store/memoryStore';
 import { useMapRef } from '../context/mapContextState';
 import { formatDate } from '../utils/formatDate';
@@ -26,11 +26,12 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
   const logStudyRecallAnswered = useMemoryStore((s) => s.logStudyRecallAnswered);
   const [active, setActive] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const primaryActionRef = useRef<HTMLButtonElement>(null);
   const images = getMemoryImages(memory);
   const firstImage = images[0] ?? null;
   const { location: locationName, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng);
 
-  useFocusTrap(panelRef, true);
+  useFocusTrap(panelRef, true, { initialFocusRef: primaryActionRef });
 
   useEffect(() => {
     if (!map) return;
@@ -42,31 +43,23 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
     return () => cancelAnimationFrame(t);
   }, []);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
-  const handleRemember = () => {
+  const handleRemember = useCallback(() => {
     scheduleNextReview(memory.id, true);
     logStudyRecallAnswered(memory.id, 'remember');
     onAnswered();
-  };
+  }, [memory.id, onAnswered, scheduleNextReview, logStudyRecallAnswered]);
 
-  const handleShowMe = () => {
+  const handleShowMe = useCallback(() => {
     scheduleNextReview(memory.id, false);
     logStudyRecallAnswered(memory.id, 'show_me');
     onShowMemory(memory);
     // Don't call onAnswered() here — parent closes recall and opens viewer; when viewer closes, parent will advance to next memory
-  };
+  }, [memory, onShowMemory, scheduleNextReview, logStudyRecallAnswered]);
 
-  const handleSkip = () => {
+  const handleSkip = useCallback(() => {
     logStudyRecallAnswered(memory.id, 'skip');
     onAnswered();
-  };
+  }, [memory.id, onAnswered, logStudyRecallAnswered]);
 
   return (
     <>
@@ -101,7 +94,7 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
               type="button"
               onClick={onClose}
               className="touch-target flex min-h-[40px] min-w-[40px] flex-shrink-0 items-center justify-center rounded-full border border-border bg-surface/70 text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary active:opacity-80"
-              aria-label="Close recall"
+              aria-label="Close"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6L6 18M6 6l12 12" />
@@ -157,8 +150,10 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
 
           <div className="mt-8 flex flex-col gap-3">
             <button
+              ref={primaryActionRef}
               type="button"
               onClick={handleRemember}
+              title="I remember"
               className="touch-target w-full rounded-lg border border-accent bg-accent/10 py-3 font-medium text-accent transition-colors hover:bg-accent/20 active:scale-[0.99]"
             >
               I remember
@@ -166,6 +161,7 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
             <button
               type="button"
               onClick={handleShowMe}
+              title="Show me"
               className="touch-target w-full rounded-lg border border-border bg-surface-elevated py-3 font-medium text-text-primary transition-colors hover:bg-surface-elevated hover:border-accent active:scale-[0.99]"
             >
               Show me

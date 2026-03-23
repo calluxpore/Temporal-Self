@@ -49,6 +49,23 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Recall: Escape only (before global Escape) so it still works when map/Leaflet holds focus.
+      {
+        const st = useMemoryStore.getState();
+        const recallId = st.recallModalMemoryId;
+        if (recallId && e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const memory = st.memories.find((m) => m.id === recallId);
+          if (memory) {
+            st.endRecallSession();
+          }
+          st.setRecallModalMemoryId(null);
+          return;
+        }
+      }
+
       if (isTypingTarget(e.target)) {
         if (e.key === 'Escape' && e.target instanceof HTMLElement) {
           e.target.blur();
@@ -231,7 +248,7 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
   );
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [handleKeyDown]);
 }

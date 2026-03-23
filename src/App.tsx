@@ -16,7 +16,6 @@ import { TopControlsBar } from './components/TopControlsBar';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { MemorySearchDrawer } from './components/MemorySearchDrawer';
 import { useVaultSync } from './hooks/useVaultSync';
-
 const SPLASH_SEEN_STORAGE_KEY = 'temporal-self-splash-seen';
 const ONBOARDING_SEEN_STORAGE_KEY = 'temporal-self-onboarding-seen';
 

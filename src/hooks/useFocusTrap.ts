@@ -8,10 +8,19 @@ function getFocusable(el: HTMLElement | null): HTMLElement[] {
   return Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE));
 }
 
+export type UseFocusTrapOptions = {
+  /** If set and inside the container, receives initial focus instead of the first tabbable in DOM order. */
+  initialFocusRef?: RefObject<HTMLElement | null>;
+};
+
 /**
  * Traps focus inside the container (e.g. modal). Tab / Shift+Tab cycle within the container.
  */
-export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active: boolean) {
+export function useFocusTrap(
+  containerRef: RefObject<HTMLElement | null>,
+  active: boolean,
+  options?: UseFocusTrapOptions
+) {
   useEffect(() => {
     if (!active || !containerRef.current) return;
     const el = containerRef.current;
@@ -49,8 +58,10 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
     };
 
     el.addEventListener('keydown', handleKeyDown);
-    const first = focusable[0];
-    if (first) first.focus();
+    const preferred = options?.initialFocusRef?.current;
+    const initial =
+      preferred && el.contains(preferred) && focusable.includes(preferred) ? preferred : focusable[0];
+    if (initial) initial.focus();
     return () => el.removeEventListener('keydown', handleKeyDown);
-  }, [active, containerRef]);
+  }, [active, containerRef, options?.initialFocusRef]);
 }
