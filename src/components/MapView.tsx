@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Rectangle, Polyline, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Rectangle, Polyline, Circle, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -77,7 +77,7 @@ function MapClickHandler({
   hidePinHint = false,
   hintCenterLeft,
 }: {
-  onMapClick: (latlng: L.LatLng) => void;
+  onMapClick: (latlng: L.LatLng, originalEvent?: MouseEvent) => void;
   onMapBackgroundClick?: () => void;
   onMapMouseMove?: (e: L.LeafletMouseEvent) => void;
   onMapDragStart?: () => void;
@@ -104,6 +104,7 @@ function MapClickHandler({
     click(e) {
       const target = e.originalEvent?.target as HTMLElement | undefined;
       if (target?.closest?.('.leaflet-control-container')) return;
+      if (e.originalEvent?.ctrlKey) return;
 
       // Settings drawer: first map click only closes it; next click can pin a new memory.
       if (settingsDrawerOpen) {
@@ -131,7 +132,7 @@ function MapClickHandler({
       }
 
       setRipple({ x: e.containerPoint.x, y: e.containerPoint.y });
-      onMapClick(e.latlng);
+      onMapClick(e.latlng, e.originalEvent);
       setTimeout(() => setRipple(null), 650);
     },
     mousemove: (e) => onMapMouseMove?.(e),
@@ -179,6 +180,7 @@ function MapClickHandler({
 
 const SEARCH_HIGHLIGHT_BLUE = '#3b82f6';
 const TIMELINE_COLOR = { dark: '#60a5fa', light: '#2563eb' } as const;
+const MEMORY_RADIUS_METERS = 2000;
 
 function MapContent({
   memories,
@@ -193,6 +195,7 @@ function MapContent({
   hidePinHint,
   hintCenterLeft,
   showMarkers,
+  showRadiusCircles,
   visibleMemoryIds,
   memorySearchMatchSet,
   onMapClick,
@@ -216,6 +219,7 @@ function MapContent({
   hidePinHint: boolean;
   hintCenterLeft: string;
   showMarkers: boolean;
+  showRadiusCircles: boolean;
   visibleMemoryIds: Set<string>;
   memorySearchMatchSet: Set<string> | null;
   onMapClick: (latlng: L.LatLng) => void;
@@ -342,6 +346,22 @@ function MapContent({
           interactive={false}
         />
       )}
+      {showRadiusCircles &&
+        sortedVisible.map((m) => (
+          <Circle
+            key={`radius-${m.id}`}
+            center={[m.lat, m.lng]}
+            radius={MEMORY_RADIUS_METERS}
+            pathOptions={{
+              color: theme === 'dark' ? '#93c5fd' : '#2563eb',
+              weight: 1.5,
+              opacity: 0.55,
+              fillColor: theme === 'dark' ? '#60a5fa' : '#3b82f6',
+              fillOpacity: 0.08,
+              interactive: false,
+            }}
+          />
+        ))}
       {showMarkers && (
         <MarkerClusterGroup
           iconCreateFunction={(cluster: { getChildCount: () => number }) => {
@@ -412,6 +432,12 @@ export function MapView({
   const dragRafRef = useRef<number | null>(null);
   const pendingDragRef = useRef<{ lat: number; lng: number; x: number; y: number } | null>(null);
   const suppressCardClickRef = useRef(false);
+  const suppressMapClickUntilRef = useRef(0);
+  const selectionDragRef = useRef<{
+    pointerId: number;
+    start: L.Point;
+    addToSelection: boolean;
+  } | null>(null);
   const prefersHover = usePrefersHover();
   const mapView = useMemoryStore((s) => s.mapView);
   const hasChosenStartLocation = useMemoryStore((s) => s.hasChosenStartLocation);
@@ -426,6 +452,7 @@ export function MapView({
   const heatmapEnabled = useMemoryStore((s) => s.heatmapEnabled);
   const moodHeatmapEnabled = useMemoryStore((s) => s.moodHeatmapEnabled);
   const markersVisible = useMemoryStore((s) => s.markersVisible);
+  const radiusCirclesEnabled = useMemoryStore((s) => s.radiusCirclesEnabled);
   const terrainContoursEnabled = useMemoryStore((s) => s.terrainContoursEnabled);
   const boundariesEnabled = useMemoryStore((s) => s.boundariesEnabled);
   const visibleMemories = useMemo(() => {
@@ -449,6 +476,16 @@ export function MapView({
   const isAddingMemory = useMemoryStore((s) => s.isAddingMemory);
   const pushUndo = useMemoryStore((s) => s.pushUndo);
   const updateMemoryWithoutUndo = useMemoryStore((s) => s.updateMemoryWithoutUndo);
+  const selectedMemoryIds = useMemoryStore((s) => s.selectedMemoryIds);
+  const setSelection = useMemoryStore((s) => s.setSelection);
+  const bulkDelete = useMemoryStore((s) => s.bulkDelete);
+  const skipDeleteConfirmation = useMemoryStore((s) => s.skipDeleteConfirmation);
+  const [selectionRectPx, setSelectionRectPx] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const hintCenterLeft = useChromeCenterLeft();
   const setPendingLatLng = useMemoryStore((s) => s.setPendingLatLng);
@@ -488,6 +525,8 @@ export function MapView({
         ? TILE_URLS.dark
         : TILE_URLS.light;
 
+  const hasSelection = selectedMemoryIds.length > 0;
+
   const closeHoverCard = useCallback(() => {
     cardPinnedBySidebarRef.current = false;
     if (hoverHideTimeoutRef.current) {
@@ -499,7 +538,9 @@ export function MapView({
   }, []);
 
   const onMapClick = useCallback(
-    (latlng: L.LatLng) => {
+    (latlng: L.LatLng, originalEvent?: MouseEvent) => {
+      if (originalEvent?.ctrlKey) return;
+      if (Date.now() < suppressMapClickUntilRef.current) return;
       if (isDraggingMemoryRef.current) return;
       if (onMapClickForPhoto?.(latlng)) return;
       closeHoverCard();
@@ -622,6 +663,126 @@ export function MapView({
       map.off('moveend', onMoveEnd);
     };
   }, [cardTargetMemoryId, visibleMemories, setCardTargetMemoryId]);
+
+  // Ctrl + drag on the map to marquee-select memories.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || spatialWalkActive || mapBlurred) return;
+    const container = map.getContainer();
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0 || !e.ctrlKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.leaflet-control-container, .memory-hover-card')) return;
+      const rect = container.getBoundingClientRect();
+      const start = L.point(e.clientX - rect.left, e.clientY - rect.top);
+      selectionDragRef.current = {
+        pointerId: -1,
+        start,
+        addToSelection: e.shiftKey,
+      };
+      setSelectionRectPx({ x: start.x, y: start.y, width: 0, height: 0 });
+      map.dragging.disable();
+      if (map.scrollWheelZoom) map.scrollWheelZoom.disable();
+      if (map.doubleClickZoom) map.doubleClickZoom.disable();
+      if (map.boxZoom) map.boxZoom.disable();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      const drag = selectionDragRef.current;
+      if (!drag) return;
+      const rect = container.getBoundingClientRect();
+      const cur = L.point(e.clientX - rect.left, e.clientY - rect.top);
+      const x = Math.min(drag.start.x, cur.x);
+      const y = Math.min(drag.start.y, cur.y);
+      const width = Math.abs(cur.x - drag.start.x);
+      const height = Math.abs(cur.y - drag.start.y);
+      setSelectionRectPx({ x, y, width, height });
+      e.preventDefault();
+    };
+
+    const finishSelection = (e: MouseEvent) => {
+      const drag = selectionDragRef.current;
+      if (!drag) return;
+      const rect = container.getBoundingClientRect();
+      const end = L.point(e.clientX - rect.left, e.clientY - rect.top);
+      selectionDragRef.current = null;
+
+      const dx = Math.abs(end.x - drag.start.x);
+      const dy = Math.abs(end.y - drag.start.y);
+      if (dx >= 4 && dy >= 4) {
+        const min = L.point(Math.min(drag.start.x, end.x), Math.min(drag.start.y, end.y));
+        const max = L.point(Math.max(drag.start.x, end.x), Math.max(drag.start.y, end.y));
+        const nw = map.containerPointToLatLng(min);
+        const se = map.containerPointToLatLng(max);
+        const bounds = L.latLngBounds(nw, se);
+        const matched = visibleMemories
+          .filter((m) => visibleMemoryIds.has(m.id))
+          .filter((m) => bounds.contains([m.lat, m.lng]))
+          .map((m) => m.id);
+        if (drag.addToSelection) {
+          const merged = new Set([...selectedMemoryIds, ...matched]);
+          setSelection(Array.from(merged));
+        } else {
+          setSelection(matched);
+        }
+        // Prevent click-to-pin that can fire right after marquee selection.
+        suppressMapClickUntilRef.current = Date.now() + 300;
+      }
+
+      setSelectionRectPx(null);
+      map.dragging.enable();
+      if (map.scrollWheelZoom) map.scrollWheelZoom.enable();
+      if (map.doubleClickZoom) map.doubleClickZoom.enable();
+      if (map.boxZoom) map.boxZoom.enable();
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    container.addEventListener('mousedown', onMouseDown, true);
+    window.addEventListener('mousemove', onMouseMove, true);
+    window.addEventListener('mouseup', finishSelection, true);
+    return () => {
+      selectionDragRef.current = null;
+      setSelectionRectPx(null);
+      container.removeEventListener('mousedown', onMouseDown, true);
+      window.removeEventListener('mousemove', onMouseMove, true);
+      window.removeEventListener('mouseup', finishSelection, true);
+      map.dragging.enable();
+      if (map.scrollWheelZoom) map.scrollWheelZoom.enable();
+      if (map.doubleClickZoom) map.doubleClickZoom.enable();
+      if (map.boxZoom) map.boxZoom.enable();
+    };
+  }, [
+    spatialWalkActive,
+    mapBlurred,
+    selectedMemoryIds,
+    setSelection,
+    visibleMemories,
+    visibleMemoryIds,
+  ]);
+
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      !!target.closest('input, textarea, [contenteditable="true"], [role="textbox"]');
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!hasSelection) return;
+      if (isTypingTarget(e.target)) return;
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      e.preventDefault();
+      if (!skipDeleteConfirmation) {
+        const ok = window.confirm(`Delete ${selectedMemoryIds.length} selected memory(ies)?`);
+        if (!ok) return;
+      }
+      bulkDelete(selectedMemoryIds);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [bulkDelete, hasSelection, selectedMemoryIds, skipDeleteConfirmation]);
 
   const startDraggingMemory = useCallback(
     (
@@ -777,6 +938,7 @@ export function MapView({
           hidePinHint={spatialWalkActive}
           hintCenterLeft={hintCenterLeft}
           showMarkers={markersVisible}
+          showRadiusCircles={radiusCirclesEnabled && !spatialWalkActive}
           visibleMemoryIds={visibleMemoryIds}
           memorySearchMatchSet={memorySearchMatchSet}
           onMapClick={onMapClick}
@@ -801,6 +963,22 @@ export function MapView({
           />
         )}
       </MapContainer>
+      {selectionRectPx && (
+        <div
+          className="pointer-events-none absolute z-[1200] border border-accent bg-accent/15"
+          style={{
+            left: selectionRectPx.x,
+            top: selectionRectPx.y,
+            width: selectionRectPx.width,
+            height: selectionRectPx.height,
+          }}
+        />
+      )}
+      {hasSelection && !spatialWalkActive && (
+        <div className="pointer-events-none absolute bottom-3 left-1/2 z-[1200] -translate-x-1/2 rounded-md border border-border bg-surface/90 px-2 py-1 font-mono text-[10px] text-text-primary shadow">
+          {selectedMemoryIds.length} selected - press Delete
+        </div>
+      )}
       {!spatialWalkActive && hoveredMemoryLive && hoverPoint && (
         <MemoryHoverCard
           memory={hoveredMemoryLive}

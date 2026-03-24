@@ -1,7 +1,12 @@
 import type { Memory } from '../types/memory';
 
-const MAX_WIDTH = 1920;
-const JPEG_QUALITY = 0.8;
+type NormalizeImageOptions = {
+  maxWidth?: number;
+  jpegQuality?: number;
+};
+
+const DEFAULT_MAX_WIDTH = 1920;
+const DEFAULT_JPEG_QUALITY = 0.8;
 
 /** All image data URLs for a memory (supports legacy imageDataUrl). */
 export function getMemoryImages(memory: Memory): string[] {
@@ -14,7 +19,10 @@ export function getMemoryImages(memory: Memory): string[] {
  * Compress image via canvas (max width 1200px, quality 0.8) then return as base64 data URL.
  */
 export async function compressImageToDataUrl(file: File): Promise<string> {
-  return compressBlobToJpegDataUrl(file);
+  return compressBlobToJpegDataUrl(file, {
+    maxWidth: DEFAULT_MAX_WIDTH,
+    jpegQuality: DEFAULT_JPEG_QUALITY,
+  });
 }
 
 async function readBlobAsDataUrl(blob: Blob): Promise<string> {
@@ -26,7 +34,9 @@ async function readBlobAsDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-async function compressBlobToJpegDataUrl(blob: Blob): Promise<string> {
+async function compressBlobToJpegDataUrl(blob: Blob, options: NormalizeImageOptions = {}): Promise<string> {
+  const maxWidth = options.maxWidth ?? DEFAULT_MAX_WIDTH;
+  const jpegQuality = options.jpegQuality ?? DEFAULT_JPEG_QUALITY;
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(blob);
@@ -35,9 +45,9 @@ async function compressBlobToJpegDataUrl(blob: Blob): Promise<string> {
       URL.revokeObjectURL(url);
       const canvas = document.createElement('canvas');
       let { width, height } = img;
-      if (width > MAX_WIDTH) {
-        height = (height * MAX_WIDTH) / width;
-        width = MAX_WIDTH;
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
       }
       canvas.width = width;
       canvas.height = height;
@@ -47,7 +57,7 @@ async function compressBlobToJpegDataUrl(blob: Blob): Promise<string> {
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+      const dataUrl = canvas.toDataURL('image/jpeg', jpegQuality);
       resolve(dataUrl);
     };
 
@@ -66,9 +76,12 @@ async function compressBlobToJpegDataUrl(blob: Blob): Promise<string> {
  * - Converts HEIC/HEIF to JPEG in-browser when needed.
  * - Falls back to raw data URL if conversion is unavailable.
  */
-export async function normalizePhonePhotoToDataUrl(file: File): Promise<string> {
+export async function normalizePhonePhotoToDataUrl(
+  file: File,
+  options: NormalizeImageOptions = {}
+): Promise<string> {
   try {
-    return await compressBlobToJpegDataUrl(file);
+    return await compressBlobToJpegDataUrl(file, options);
   } catch {
     const mime = file.type.toLowerCase();
     const isHeicLike =
@@ -79,11 +92,11 @@ export async function normalizePhonePhotoToDataUrl(file: File): Promise<string> 
         const converted = await heic2any({
           blob: file,
           toType: 'image/jpeg',
-          quality: JPEG_QUALITY,
+          quality: options.jpegQuality ?? DEFAULT_JPEG_QUALITY,
         });
         const convertedBlob = Array.isArray(converted) ? converted[0] : converted;
         if (convertedBlob instanceof Blob) {
-          return await compressBlobToJpegDataUrl(convertedBlob);
+          return await compressBlobToJpegDataUrl(convertedBlob, options);
         }
       } catch {
         // Fall through to raw data URL fallback.

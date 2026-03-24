@@ -6,6 +6,7 @@ import { memoriesInSidebarOrder } from '../utils/memoryOrder';
 export const HOTKEY_RESET_EVENT = 'temporal-self-hotkey-reset';
 export const HOTKEY_EXPORT_EVENT = 'temporal-self-hotkey-export';
 export const HOTKEY_IMPORT_EVENT = 'temporal-self-hotkey-import';
+export const HOTKEY_IMPORT_PHOTOS_EVENT = 'temporal-self-hotkey-import-photos';
 export const HOTKEY_SHOT_EVENT = 'temporal-self-hotkey-shot';
 export const HOTKEY_REPORT_EVENT = 'temporal-self-hotkey-report';
 
@@ -50,6 +51,14 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
   const setMoodHeatmapEnabled = useMemoryStore((s) => s.setMoodHeatmapEnabled);
   const markersVisible = useMemoryStore((s) => s.markersVisible);
   const setMarkersVisible = useMemoryStore((s) => s.setMarkersVisible);
+  const radiusCirclesEnabled = useMemoryStore((s) => s.radiusCirclesEnabled);
+  const setRadiusCirclesEnabled = useMemoryStore((s) => s.setRadiusCirclesEnabled);
+  const filterStarred = useMemoryStore((s) => s.filterStarred);
+  const setFilterStarred = useMemoryStore((s) => s.setFilterStarred);
+  const terrainContoursEnabled = useMemoryStore((s) => s.terrainContoursEnabled);
+  const setTerrainContoursEnabled = useMemoryStore((s) => s.setTerrainContoursEnabled);
+  const boundariesEnabled = useMemoryStore((s) => s.boundariesEnabled);
+  const setBoundariesEnabled = useMemoryStore((s) => s.setBoundariesEnabled);
   const setSidebarView = useMemoryStore((s) => s.setSidebarView);
   const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
   const setSettingsDrawerOpen = useMemoryStore((s) => s.setSettingsDrawerOpen);
@@ -239,6 +248,26 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
           setMarkersVisible(!markersVisible);
           return;
         }
+        if (k === 'o') {
+          e.preventDefault();
+          setRadiusCirclesEnabled(!radiusCirclesEnabled);
+          return;
+        }
+        if (k === 'f') {
+          e.preventDefault();
+          setFilterStarred(!filterStarred);
+          return;
+        }
+        if (k === 'j') {
+          e.preventDefault();
+          setTerrainContoursEnabled(!terrainContoursEnabled);
+          return;
+        }
+        if (k === 'u') {
+          e.preventDefault();
+          setBoundariesEnabled(!boundariesEnabled);
+          return;
+        }
         if (k === 'l') {
           e.preventDefault();
           setSidebarView('list');
@@ -257,6 +286,11 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
         if (k === 'i') {
           e.preventDefault();
           window.dispatchEvent(new CustomEvent(HOTKEY_IMPORT_EVENT));
+          return;
+        }
+        if (k === 'x') {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent(HOTKEY_IMPORT_PHOTOS_EVENT));
           return;
         }
         if (k === 'b') {
@@ -315,6 +349,14 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
       setMoodHeatmapEnabled,
       markersVisible,
       setMarkersVisible,
+      radiusCirclesEnabled,
+      setRadiusCirclesEnabled,
+      filterStarred,
+      setFilterStarred,
+      terrainContoursEnabled,
+      setTerrainContoursEnabled,
+      boundariesEnabled,
+      setBoundariesEnabled,
       setSidebarView,
       setMemorySearchDrawerOpen,
       setSettingsDrawerOpen,

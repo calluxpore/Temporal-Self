@@ -9,6 +9,7 @@ import { TimelineToggle } from './TimelineToggle';
 import { HeatmapToggle } from './HeatmapToggle';
 import { MoodHeatmapToggle } from './MoodHeatmapToggle';
 import { MarkersToggle } from './MarkersToggle';
+import { RadiusCirclesToggle } from './RadiusCirclesToggle';
 import { FavoritesToggle } from './FavoritesToggle';
 import { ExportImportButtons } from './ExportImportButtons';
 import { TerrainContoursToggle } from './TerrainContoursToggle';
@@ -44,19 +45,20 @@ export function TopControlsBar({
         {/* Only enable pointer events on the actual button group, not the entire top bar area. */}
         <div className={`inline-flex max-w-[100vw] flex-nowrap items-center justify-center gap-1.5 px-2 pt-2.5 overflow-visible ${visible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           <ThemeToggle variant="bar" />
-          <RecallButton variant="bar" />
-          <ResetButton variant="bar" />
-          <MemorySearchButton variant="bar" />
           <MapStyleToggle variant="bar" />
           <TerrainContoursToggle variant="bar" />
           <BoundariesToggle variant="bar" />
-          <TimelineLineStyleToggle variant="bar" />
           <TimelineToggle variant="bar" />
+          <TimelineLineStyleToggle variant="bar" />
+          <MarkersToggle variant="bar" />
+          <RadiusCirclesToggle variant="bar" />
           <HeatmapToggle variant="bar" />
           <MoodHeatmapToggle variant="bar" />
-          <MarkersToggle variant="bar" />
           <FavoritesToggle variant="bar" />
+          <MemorySearchButton variant="bar" />
+          <RecallButton variant="bar" />
           <ExportImportButtons variant="bar" onImportPhotos={onImportPhotos} />
+          <ResetButton variant="bar" />
         </div>
       </div>
     </div>

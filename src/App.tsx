@@ -33,6 +33,21 @@ type ProcessResult = {
   dateTaken: string | null;
 };
 
+type BulkImportProfile = {
+  maxWidth: number;
+  jpegQuality: number;
+  concurrency: number;
+  progressStep: number;
+};
+
+function getBulkImportProfile(total: number): BulkImportProfile {
+  if (total >= 1000) return { maxWidth: 1280, jpegQuality: 0.68, concurrency: 2, progressStep: 10 };
+  if (total >= 400) return { maxWidth: 1440, jpegQuality: 0.72, concurrency: 3, progressStep: 6 };
+  if (total >= 120) return { maxWidth: 1600, jpegQuality: 0.76, concurrency: 4, progressStep: 4 };
+  if (total >= 40) return { maxWidth: 1760, jpegQuality: 0.78, concurrency: 5, progressStep: 2 };
+  return { maxWidth: 1920, jpegQuality: 0.8, concurrency: 6, progressStep: 1 };
+}
+
 type ImportToastState = {
   message: string;
   actionLabel?: string;
@@ -156,7 +171,7 @@ function AppContent() {
     [addMemory, logStudyMemoryCreated, aiProvider, aiApiKey, aiAutoAnalyze, enqueueAiAnalysis]
   );
 
-  const processPhoto = useCallback(async (file: File): Promise<ProcessResult> => {
+  const processPhoto = useCallback(async (file: File, profile: BulkImportProfile): Promise<ProcessResult> => {
     let lat: number | null = null;
     let lng: number | null = null;
     let dateTaken: string | null = null;
@@ -176,7 +191,10 @@ function AppContent() {
     } catch {
       // EXIF parse errors are treated as missing metadata.
     }
-    const dataUrl = await normalizePhonePhotoToDataUrl(file);
+    const dataUrl = await normalizePhonePhotoToDataUrl(file, {
+      maxWidth: profile.maxWidth,
+      jpegQuality: profile.jpegQuality,
+    });
     return { file, dataUrl, lat, lng, dateTaken };
   }, []);
 
@@ -184,51 +202,63 @@ function AppContent() {
     async (files: File[]) => {
       const imageFiles = files.filter(isLikelyPhotoFile);
       if (!imageFiles.length) return;
-      setProcessingProgress({ done: 0, total: imageFiles.length });
-      let results: ProcessResult[] = [];
-      if (imageFiles.length > 10) {
-        for (let i = 0; i < imageFiles.length; i++) {
-          const result = await processPhoto(imageFiles[i]);
-          results.push(result);
-          setProcessingProgress({ done: i + 1, total: imageFiles.length });
+      const total = imageFiles.length;
+      const profile = getBulkImportProfile(total);
+      setProcessingProgress({ done: 0, total });
+      const geotaggedLatLngs: Array<[number, number]> = [];
+      const nextUngeotagged: UngeotaggedPhotoItem[] = [];
+      let placed = 0;
+      let claimed = 0;
+      let completed = 0;
+
+      const worker = async () => {
+        while (true) {
+          const index = claimed;
+          if (index >= total) return;
+          claimed += 1;
+          const result = await processPhoto(imageFiles[index], profile);
+          if (result.lat != null && result.lng != null) {
+            createImportedMemory({
+              lat: result.lat,
+              lng: result.lng,
+              dataUrl: result.dataUrl,
+              dateTaken: result.dateTaken,
+            });
+            geotaggedLatLngs.push([result.lat, result.lng]);
+            placed += 1;
+          } else {
+            nextUngeotagged.push({
+              id: crypto.randomUUID(),
+              fileName: result.file.name,
+              dataUrl: result.dataUrl,
+              dateTaken: result.dateTaken,
+            });
+          }
+          completed += 1;
+          if (completed % profile.progressStep === 0 || completed === total) {
+            setProcessingProgress({ done: completed, total });
+            // Let React/paint breathe during very large imports.
+            await new Promise((resolve) => window.setTimeout(resolve, 0));
+          }
         }
-      } else {
-        results = await Promise.all(
-          imageFiles.map(async (file, idx) => {
-            const result = await processPhoto(file);
-            setProcessingProgress({ done: idx + 1, total: imageFiles.length });
-            return result;
-          })
-        );
-      }
+      };
+
+      await Promise.all(
+        Array.from({ length: Math.min(profile.concurrency, total) }, () => worker())
+      );
       setProcessingProgress(null);
 
-      const geotagged = results.filter((r) => r.lat != null && r.lng != null) as Array<
-        ProcessResult & { lat: number; lng: number }
-      >;
-      const ungeotagged = results.filter((r) => r.lat == null || r.lng == null);
-
-      geotagged.forEach((r) => {
-        createImportedMemory({ lat: r.lat, lng: r.lng, dataUrl: r.dataUrl, dateTaken: r.dateTaken });
-      });
-      if (geotagged.length > 0 && map) {
+      if (geotaggedLatLngs.length > 0 && map) {
         map.fitBounds(
-          geotagged.map((r) => [r.lat, r.lng] as [number, number]),
+          geotaggedLatLngs,
           { padding: [60, 60], maxZoom: 14 }
         );
       }
 
-      const nextUngeotagged = ungeotagged.map((r) => ({
-        id: crypto.randomUUID(),
-        fileName: r.file.name,
-        dataUrl: r.dataUrl,
-        dateTaken: r.dateTaken,
-      }));
       if (nextUngeotagged.length) {
         setUngeotaggedPhotos((prev) => [...prev, ...nextUngeotagged]);
       }
 
-      const placed = geotagged.length;
       const missing = nextUngeotagged.length;
       if (placed > 0 && missing === 0) {
         setImportToast({ message: `${placed} photo${placed === 1 ? '' : 's'} placed on the map` });

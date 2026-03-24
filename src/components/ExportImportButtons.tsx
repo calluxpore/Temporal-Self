@@ -12,6 +12,7 @@ import type { StudyEvent } from '../types/study';
 import {
   HOTKEY_EXPORT_EVENT,
   HOTKEY_IMPORT_EVENT,
+  HOTKEY_IMPORT_PHOTOS_EVENT,
   HOTKEY_REPORT_EVENT,
   HOTKEY_SHOT_EVENT,
 } from '../hooks/useKeyboardShortcuts';
@@ -521,6 +522,7 @@ export function ExportImportButtons({
   useEffect(() => {
     const onExport = () => setExportOpen((o) => !o);
     const onImport = () => handleImportClick();
+    const onImportPhotos = () => handlePhotoImportClick();
     const onShot = () => {
       if (!screenshotBusy) void handleSaveScreenshot();
     };
@@ -529,15 +531,17 @@ export function ExportImportButtons({
     };
     window.addEventListener(HOTKEY_EXPORT_EVENT, onExport as EventListener);
     window.addEventListener(HOTKEY_IMPORT_EVENT, onImport as EventListener);
+    window.addEventListener(HOTKEY_IMPORT_PHOTOS_EVENT, onImportPhotos as EventListener);
     window.addEventListener(HOTKEY_SHOT_EVENT, onShot as EventListener);
     window.addEventListener(HOTKEY_REPORT_EVENT, onReport as EventListener);
     return () => {
       window.removeEventListener(HOTKEY_EXPORT_EVENT, onExport as EventListener);
       window.removeEventListener(HOTKEY_IMPORT_EVENT, onImport as EventListener);
+      window.removeEventListener(HOTKEY_IMPORT_PHOTOS_EVENT, onImportPhotos as EventListener);
       window.removeEventListener(HOTKEY_SHOT_EVENT, onShot as EventListener);
       window.removeEventListener(HOTKEY_REPORT_EVENT, onReport as EventListener);
     };
-  }, [handleGenerateReport, handleImportClick, handleSaveScreenshot, reportBusy, screenshotBusy]);
+  }, [handleGenerateReport, handleImportClick, handlePhotoImportClick, handleSaveScreenshot, reportBusy, screenshotBusy]);
 
   return (
     <>
@@ -670,15 +674,17 @@ export function ExportImportButtons({
           onClick={handlePhotoImportClick}
           className={roundButtonClass}
           aria-label="Import photos"
-          title="Import photos"
+          title="Import photos (Alt+X)"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary">
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-            <circle cx="12" cy="13" r="3" />
-            <path d="M19 5v4M17 7h4" />
+            <rect x="3" y="5" width="14" height="14" rx="2" />
+            <path d="m6 15 3-3 2 2 3-3 3 3" />
+            <circle cx="8.5" cy="9" r="1" />
+            <path d="M20 7v7" />
+            <path d="M17 11h6" />
           </svg>
         </button>
-        <span className={tooltipClass}>Import photos</span>
+        <span className={tooltipClass}>Import photos (Alt+X)</span>
       </div>
 
       {/* Save screenshot: round button — captures map with current effects, saves to downloads */}

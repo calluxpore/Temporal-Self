@@ -51,6 +51,8 @@ interface MemoryState {
   moodHeatmapEnabled: boolean;
   /** Show memory markers and labels on map. */
   markersVisible: boolean;
+  /** Show a fixed-radius circle around each visible memory marker. */
+  radiusCirclesEnabled: boolean;
   /** Overlay terrain/contour context on top of base tiles. */
   terrainContoursEnabled: boolean;
   /** Overlay country/region boundary lines. */
@@ -147,6 +149,7 @@ interface MemoryState {
   setHeatmapEnabled: (value: boolean) => void;
   setMoodHeatmapEnabled: (value: boolean) => void;
   setMarkersVisible: (value: boolean) => void;
+  setRadiusCirclesEnabled: (value: boolean) => void;
   setTerrainContoursEnabled: (value: boolean) => void;
   setBoundariesEnabled: (value: boolean) => void;
   setTopShelfVisibleMain: (value: boolean) => void;
@@ -250,6 +253,7 @@ export const useMemoryStore = create<MemoryState>()(
       heatmapEnabled: false,
       moodHeatmapEnabled: false,
       markersVisible: true,
+      radiusCirclesEnabled: false,
       terrainContoursEnabled: false,
       boundariesEnabled: false,
       topShelfVisibleMain: true,
@@ -547,6 +551,7 @@ export const useMemoryStore = create<MemoryState>()(
       setHeatmapEnabled: (heatmapEnabled) => set({ heatmapEnabled }),
       setMoodHeatmapEnabled: (moodHeatmapEnabled) => set({ moodHeatmapEnabled }),
       setMarkersVisible: (markersVisible) => set({ markersVisible }),
+      setRadiusCirclesEnabled: (radiusCirclesEnabled) => set({ radiusCirclesEnabled }),
       setTerrainContoursEnabled: (terrainContoursEnabled) => set({ terrainContoursEnabled }),
       setBoundariesEnabled: (boundariesEnabled) => set({ boundariesEnabled }),
       setTopShelfVisibleMain: (topShelfVisibleMain) => set({ topShelfVisibleMain }),
@@ -801,6 +806,7 @@ export const useMemoryStore = create<MemoryState>()(
           memorySearchMatchIds: null,
           topShelfVisibleMain: true,
           topShelfVisibleSpatial: false,
+          radiusCirclesEnabled: false,
           vaultLinkNonce: state.vaultLinkNonce + 1,
           aiQueue: [],
           aiProcessing: null,
@@ -808,7 +814,7 @@ export const useMemoryStore = create<MemoryState>()(
     }),
     {
       name: 'temporal-self-storage',
-      version: 13,
+      version: 14,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         mapView: state.mapView,
@@ -830,6 +836,7 @@ export const useMemoryStore = create<MemoryState>()(
         vaultLastSyncAt: state.vaultLastSyncAt,
         topShelfVisibleMain: state.topShelfVisibleMain,
         topShelfVisibleSpatial: state.topShelfVisibleSpatial,
+        radiusCirclesEnabled: state.radiusCirclesEnabled,
         terrainContoursEnabled: state.terrainContoursEnabled,
         boundariesEnabled: state.boundariesEnabled,
         aiProvider: state.aiProvider,
@@ -948,6 +955,12 @@ export const useMemoryStore = create<MemoryState>()(
           delete copy.poiOverlayEnabled;
           delete copy.naturalOverlayEnabled;
           return withVault(copy);
+        }
+        if (version < 14) {
+          return withVault({
+            ...p,
+            radiusCirclesEnabled: typeof p.radiusCirclesEnabled === 'boolean' ? p.radiusCirclesEnabled : false,
+          });
         }
         return withVault(p);
       },

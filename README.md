@@ -111,11 +111,16 @@ There is **no automated test script** in `package.json` today; rely on lint, typ
 - `Alt + H` — toggle heatmap
 - `Alt + T` — toggle map style
 - `Alt + G` — toggle mood heatmap
+- `Alt + J` — toggle terrain contours
+- `Alt + U` — toggle boundaries overlay
 - `Alt + M` — toggle markers
+- `Alt + O` — toggle radius circles (2 km around each memory)
+- `Alt + F` — toggle favorites-only filter
 - `Alt + L` — switch sidebar to list view
 - `Alt + K` — switch sidebar to calendar view
 - `Alt + E` — open export menu
 - `Alt + I` — open import file picker
+- `Alt + X` — import photos
 - `Ctrl + I` — save map screenshot
 - `Ctrl + R` — generate report
 - `Shift + S` — open settings
