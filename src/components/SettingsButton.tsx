@@ -1,8 +1,5 @@
 import { useMemoryStore } from '../store/memoryStore';
 
-const ROUND_BUTTON_CLASS =
-  'flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95';
-
 type TopControlVariant = 'fixed' | 'bar';
 
 const TOOLTIP_CLASS =
@@ -16,6 +13,10 @@ export function SettingsButton({ variant = 'fixed' }: { variant?: TopControlVari
   const setSettingsDrawerOpen = useMemoryStore((s) => s.setSettingsDrawerOpen);
   const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
   const tooltipClass = variant === 'bar' ? TOOLTIP_CLASS_BAR : TOOLTIP_CLASS;
+
+  const roundButtonClass = `flex touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${
+    variant === 'bar' ? 'h-10 w-10 min-h-[36px] min-w-[36px]' : 'h-12 w-12 min-h-[44px] min-w-[44px]'
+  }`;
 
   return (
     <div
@@ -38,7 +39,7 @@ export function SettingsButton({ variant = 'fixed' }: { variant?: TopControlVari
           setMemorySearchDrawerOpen(false);
           setSettingsDrawerOpen(true);
         }}
-        className={ROUND_BUTTON_CLASS + (settingsDrawerOpen ? ' border-accent bg-surface-elevated' : '')}
+        className={roundButtonClass + (settingsDrawerOpen ? ' border-accent bg-surface-elevated' : '')}
         aria-label="Settings"
         title="Settings (Shift+S)"
       >

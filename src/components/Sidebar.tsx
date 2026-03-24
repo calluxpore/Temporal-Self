@@ -15,40 +15,13 @@ import { filterMemoriesByDate } from '../utils/dateFilter';
 import type { Memory } from '../types/memory';
 import { memoryNoteDisplayName } from '../utils/vaultMarkdown';
 import { SidebarVaultRow } from './SidebarVaultRow';
+import { OnThisDayBanner } from './OnThisDayBanner';
 
 const UNGROUPED_ID = '__ungrouped__';
 
-function memoryMatchesSearch(m: Memory, q: string): boolean {
-  if (!q.trim()) return true;
-  const lower = q.toLowerCase();
-  const tagMatch = (m.tags ?? []).some((t) => t.toLowerCase().includes(lower));
-  return (
-    tagMatch ||
-    m.title.toLowerCase().includes(lower) ||
-    memoryNoteDisplayName(m).toLowerCase().includes(lower) ||
-    m.notes.toLowerCase().includes(lower) ||
-    m.date.toLowerCase().includes(lower)
-  );
-}
-
-function highlightMatch(text: string, query: string): React.ReactNode {
-  if (!query.trim()) return text;
-  const lower = text.toLowerCase();
-  const q = query.toLowerCase();
-  const i = lower.indexOf(q);
-  if (i === -1) return text;
-  return (
-    <>
-      {text.slice(0, i)}
-      <span className="text-accent">{text.slice(i, i + query.length)}</span>
-      {text.slice(i + query.length)}
-    </>
-  );
-}
-
 const DRAG_MEMORY_KEY = 'memory-id';
 const DROP_LINE_END = '__drop_end__';
-const GROUP_NAME_MAX_LENGTH = 6;
+const GROUP_NAME_MAX_LENGTH = 20;
 
 /** Insert draggedId so it appears before beforeId, or at end if beforeId is null. */
 function insertBefore(ids: string[], draggedId: string, beforeId: string | null): string[] {
@@ -110,7 +83,6 @@ const CUSTOM_LABEL_MAX_LENGTH = 3;
 
 function MemoryListItem({
   memory,
-  searchQuery,
   label,
   onLabelChange,
   onClick,
@@ -122,7 +94,6 @@ function MemoryListItem({
   onDragStartWithId,
 }: {
   memory: Memory;
-  searchQuery: string;
   /** Default letter label (A, B, …) when no customLabel. */
   label?: string;
   onLabelChange?: (memoryId: string, value: string | null) => void;
@@ -236,7 +207,7 @@ function MemoryListItem({
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-display text-text-primary truncate text-[11px] font-medium leading-tight">
-            {highlightMatch(memoryNoteDisplayName(memory), searchQuery)}
+            {memoryNoteDisplayName(memory)}
           </div>
           <div className="font-mono text-[10px] text-text-secondary leading-tight">
             {formatDate(memory.date)}
@@ -303,7 +274,6 @@ function GroupSection({
   id,
   name,
   memories,
-  searchQuery,
   collapsed,
   hidden,
   onToggleCollapse,
@@ -326,7 +296,6 @@ function GroupSection({
   id: string;
   name: string;
   memories: Memory[];
-  searchQuery: string;
   collapsed: boolean;
   hidden: boolean;
   onToggleCollapse: () => void;
@@ -508,12 +477,7 @@ function GroupSection({
           }}
         >
           {memories.map((m) => (
-            <div
-              key={m.id}
-              className={`transition-opacity duration-200 ${
-                memoryMatchesSearch(m, searchQuery) ? 'opacity-100' : 'opacity-20'
-              }`}
-            >
+            <div key={m.id}>
               <ReorderDropLine
                 insertBeforeId={m.id}
                 lineId={m.id}
@@ -526,7 +490,6 @@ function GroupSection({
               />
               <MemoryListItem
                 memory={m}
-                searchQuery={searchQuery}
                 label={memoryLabels?.get(m.id)}
                 onLabelChange={onMemoryLabelChange}
                 onClick={(e) => onMemoryClick(e, m)}
@@ -557,11 +520,10 @@ function GroupSection({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ tourActive = false, spatialWalkActive = false }: { tourActive?: boolean; spatialWalkActive?: boolean }) {
   const map = useMapRef();
   const memories = useMemoryStore((s) => s.memories);
   const groups = useMemoryStore((s) => s.groups);
-  const searchQuery = useMemoryStore((s) => s.searchQuery);
   const sidebarOpen = useMemoryStore((s) => s.sidebarOpen);
   const setSidebarOpen = useMemoryStore((s) => s.setSidebarOpen);
   const filterStarred = useMemoryStore((s) => s.filterStarred);
@@ -777,6 +739,11 @@ export function Sidebar() {
               </svg>
             </button>
           </div>
+          <OnThisDayBanner
+            memories={memories}
+            tourActive={tourActive}
+            spatialWalkActive={spatialWalkActive}
+          />
           <div className="flex gap-0.5 overflow-x-auto rounded border border-border p-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               type="button"
@@ -926,7 +893,6 @@ export function Sidebar() {
               id={UNGROUPED_ID}
               name="Ungrouped"
               memories={ungroupedMemories}
-              searchQuery={searchQuery}
               collapsed={ungroupedCollapsed}
               hidden={false}
               onToggleCollapse={() => setUngroupedCollapsed((c) => !c)}
@@ -952,7 +918,6 @@ export function Sidebar() {
                 memories={visibleMemories
                   .filter((m) => (m.groupId ?? null) === g.id)
                   .sort(sortCompare)}
-                searchQuery={searchQuery}
                 collapsed={g.collapsed}
                 hidden={g.hidden ?? false}
                 onToggleCollapse={() => updateGroup(g.id, { collapsed: !g.collapsed })}

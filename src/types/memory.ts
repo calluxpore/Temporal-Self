@@ -8,6 +8,7 @@ export interface Memory {
   title: string;
   date: string;
   notes: string;
+  placeDescriptor?: string;
   /** @deprecated Use imageDataUrls; first image is imageDataUrls?.[0] ?? imageDataUrl */
   imageDataUrl?: string | null;
   /** Multiple images per memory (data URLs). When set, imageDataUrl is ignored for display. */

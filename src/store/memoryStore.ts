@@ -14,7 +14,7 @@ export type SearchHighlight =
   | null;
 
 export type TimelineLineStyle = 'spline' | 'orthogonal';
-const GROUP_NAME_MAX_LENGTH = 6;
+const GROUP_NAME_MAX_LENGTH = 20;
 export type MapStyle = 'default' | 'watercolor';
 
 interface MemoryState {
@@ -30,7 +30,6 @@ interface MemoryState {
   pendingLatLng: PendingLatLng | null;
   searchHighlight: SearchHighlight;
   sidebarOpen: boolean;
-  searchQuery: string;
   theme: 'dark' | 'light';
   mapStyle: MapStyle;
   timelineEnabled: boolean;
@@ -52,6 +51,10 @@ interface MemoryState {
   moodHeatmapEnabled: boolean;
   /** Show memory markers and labels on map. */
   markersVisible: boolean;
+  /** Top controls shelf visibility in main screens. */
+  topShelfVisibleMain: boolean;
+  /** Top controls shelf visibility during spatial walk. */
+  topShelfVisibleSpatial: boolean;
   /** Sidebar main view: list, calendar, memory stats (totals), mood stats, recall stats. */
   sidebarView: 'list' | 'calendar' | 'stats' | 'moodStats' | 'memoryStats';
   /** Bulk selection: memory IDs. */
@@ -62,9 +65,15 @@ interface MemoryState {
   /** Memory id shown in recall modal (null = closed). */
   recallModalMemoryId: string | null;
   setRecallModalMemoryId: (id: string | null) => void;
+  /** Active recall presentation mode. */
+  recallMode: 'flashcard' | 'spatial' | null;
+  setRecallMode: (mode: 'flashcard' | 'spatial' | null) => void;
   /** Ordered list of memory ids for the current recall session (so we show each in turn). */
   recallSessionQueue: string[];
   setRecallSessionQueue: (ids: string[]) => void;
+  /** Number of due memories when the current recall session started. */
+  recallSessionInitialCount: number;
+  setRecallSessionInitialCount: (count: number) => void;
   /** Per-session stats: each time you run Practice recall, we record { remembered, forgot } when the session ends. */
   recallSessions: { remembered: number; forgot: number }[];
   /** Current session counts (reset when starting recall; pushed to recallSessions when modal closes). */
@@ -123,6 +132,8 @@ interface MemoryState {
   setHeatmapEnabled: (value: boolean) => void;
   setMoodHeatmapEnabled: (value: boolean) => void;
   setMarkersVisible: (value: boolean) => void;
+  setTopShelfVisibleMain: (value: boolean) => void;
+  setTopShelfVisibleSpatial: (value: boolean) => void;
   setSidebarView: (view: MemoryState['sidebarView']) => void;
   addMemory: (memory: Memory) => void;
   updateMemory: (id: string, updates: Partial<Memory>) => void;
@@ -138,7 +149,6 @@ interface MemoryState {
   setPendingLatLng: (value: PendingLatLng | null) => void;
   setSearchHighlight: (value: SearchHighlight) => void;
   setSidebarOpen: (value: boolean) => void;
-  setSearchQuery: (value: string) => void;
   setMapView: (value: { lat: number; lng: number; zoom: number }) => void;
   setHasChosenStartLocation: (value: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
@@ -209,7 +219,6 @@ export const useMemoryStore = create<MemoryState>()(
       pendingLatLng: null,
       searchHighlight: null,
       sidebarOpen: true,
-      searchQuery: '',
       theme: 'dark',
       mapStyle: 'default',
       timelineEnabled: false,
@@ -224,12 +233,16 @@ export const useMemoryStore = create<MemoryState>()(
       heatmapEnabled: false,
       moodHeatmapEnabled: false,
       markersVisible: true,
+      topShelfVisibleMain: true,
+      topShelfVisibleSpatial: false,
       sidebarView: 'list',
       selectedMemoryIds: [],
       undoStack: [],
       redoStack: [],
       recallModalMemoryId: null,
+      recallMode: null,
       recallSessionQueue: [],
+      recallSessionInitialCount: 0,
       recallSessions: [],
       currentSessionRemembered: 0,
       currentSessionForgot: 0,
@@ -252,7 +265,16 @@ export const useMemoryStore = create<MemoryState>()(
       setSettingsDrawerOpen: (open) =>
         set({
           settingsDrawerOpen: open,
-          ...(open ? { memorySearchDrawerOpen: false, memorySearchMatchIds: null } : {}),
+          ...(open
+            ? {
+                memorySearchDrawerOpen: false,
+                memorySearchMatchIds: null,
+                selectedMemoryId: null,
+                editingMemory: null,
+                isAddingMemory: false,
+                pendingLatLng: null,
+              }
+            : {}),
         }),
       setMemorySearchDrawerOpen: (open) =>
         set({
@@ -269,7 +291,9 @@ export const useMemoryStore = create<MemoryState>()(
       bumpVaultLinkNonce: () => set((s) => ({ vaultLinkNonce: s.vaultLinkNonce + 1 })),
 
       setRecallModalMemoryId: (id) => set({ recallModalMemoryId: id }),
+      setRecallMode: (mode) => set({ recallMode: mode }),
       setRecallSessionQueue: (recallSessionQueue) => set({ recallSessionQueue }),
+      setRecallSessionInitialCount: (recallSessionInitialCount) => set({ recallSessionInitialCount }),
       resetRecallSession: () => set({ currentSessionRemembered: 0, currentSessionForgot: 0 }),
       endRecallSession: () =>
         set((state) => {
@@ -479,6 +503,8 @@ export const useMemoryStore = create<MemoryState>()(
       setHeatmapEnabled: (heatmapEnabled) => set({ heatmapEnabled }),
       setMoodHeatmapEnabled: (moodHeatmapEnabled) => set({ moodHeatmapEnabled }),
       setMarkersVisible: (markersVisible) => set({ markersVisible }),
+      setTopShelfVisibleMain: (topShelfVisibleMain) => set({ topShelfVisibleMain }),
+      setTopShelfVisibleSpatial: (topShelfVisibleSpatial) => set({ topShelfVisibleSpatial }),
       setSidebarView: (sidebarView) => set({ sidebarView }),
 
       setSidebarWidth: (width) =>
@@ -626,7 +652,6 @@ export const useMemoryStore = create<MemoryState>()(
 
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
 
-      setSearchQuery: (searchQuery) => set({ searchQuery }),
       setMapView: (mapView) => set({ mapView }),
       setHasChosenStartLocation: (hasChosenStartLocation) => set({ hasChosenStartLocation }),
 
@@ -706,7 +731,9 @@ export const useMemoryStore = create<MemoryState>()(
           selectedMemoryId: null,
           selectedMemoryIds: [],
           recallModalMemoryId: null,
+          recallMode: null,
           recallSessionQueue: [],
+          recallSessionInitialCount: 0,
           recallSessions: [],
           currentSessionRemembered: 0,
           currentSessionForgot: 0,
@@ -726,6 +753,8 @@ export const useMemoryStore = create<MemoryState>()(
           settingsDrawerOpen: false,
           memorySearchDrawerOpen: false,
           memorySearchMatchIds: null,
+          topShelfVisibleMain: true,
+          topShelfVisibleSpatial: false,
           vaultLinkNonce: state.vaultLinkNonce + 1,
         })),
     }),
@@ -751,6 +780,8 @@ export const useMemoryStore = create<MemoryState>()(
         studyEvents: state.studyEvents,
         vaultElectronPath: state.vaultElectronPath,
         vaultLastSyncAt: state.vaultLastSyncAt,
+        topShelfVisibleMain: state.topShelfVisibleMain,
+        topShelfVisibleSpatial: state.topShelfVisibleSpatial,
       }),
       migrate: (persisted: unknown, version: number) => {
         const withVault = (x: Record<string, unknown>): Record<string, unknown> => {

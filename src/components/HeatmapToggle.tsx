@@ -23,7 +23,7 @@ export function HeatmapToggle({ variant = 'fixed' }: { variant?: TopControlVaria
       <button
         type="button"
         onClick={() => setHeatmapEnabled(!heatmapEnabled)}
-        className={`flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${activeClasses}`}
+        className={`flex touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${variant === 'bar' ? 'h-10 w-10 min-h-[36px] min-w-[36px]' : 'h-12 w-12 min-h-[44px] min-w-[44px]'} ${activeClasses}`}
         aria-label={heatmapEnabled ? 'Hide heatmap' : 'Show heatmap'}
         aria-pressed={heatmapEnabled}
         title="Heatmap (Alt+H)"

@@ -56,8 +56,6 @@ function roundedRectPath(
 }
 
 /** Same look as Theme/Timeline/Heatmap; use inside a fixed wrapper so no fixed here. */
-const ROUND_BUTTON_CLASS =
-  'flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95';
 const TOOLTIP_CLASS =
   'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100';
 
@@ -129,6 +127,9 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
   const setStudyCheckpointTag = useMemoryStore((s) => s.setStudyCheckpointTag);
 
   const tooltipClass = variant === 'bar' ? TOOLTIP_CLASS_BAR : TOOLTIP_CLASS;
+  const roundButtonClass = `flex touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${
+    variant === 'bar' ? 'h-10 w-10 min-h-[36px] min-w-[36px]' : 'h-12 w-12 min-h-[44px] min-w-[44px]'
+  }`;
   const errorTop =
     variant === 'bar' ? `calc(max(24px, env(safe-area-inset-top, 0px)) + 78px)` : undefined;
 
@@ -509,7 +510,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
             e.stopPropagation();
             setExportOpen((o) => !o);
           }}
-          className={ROUND_BUTTON_CLASS + (exportOpen ? ' border-accent bg-surface-elevated' : '')}
+          className={roundButtonClass + (exportOpen ? ' border-accent bg-surface-elevated' : '')}
           aria-label="Export"
           title="Export (Alt+E)"
           aria-expanded={exportOpen}
@@ -567,7 +568,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
         <button
           type="button"
           onClick={handleImportClick}
-          className={ROUND_BUTTON_CLASS}
+          className={roundButtonClass}
           aria-label="Import backup"
           title="Import (Alt+I)"
         >
@@ -597,7 +598,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           type="button"
           onClick={handleSaveScreenshot}
           disabled={!map || screenshotBusy}
-          className={ROUND_BUTTON_CLASS}
+          className={roundButtonClass}
           aria-label="Save map screenshot"
           title="Shot (Ctrl+I)"
         >
@@ -630,7 +631,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           type="button"
           onClick={handleGenerateReport}
           disabled={reportBusy}
-          className={ROUND_BUTTON_CLASS}
+          className={roundButtonClass}
           aria-label="Generate report"
           title="Report (Ctrl+R)"
         >
@@ -668,7 +669,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           href="https://samreddy.work/"
           target="_blank"
           rel="noopener noreferrer"
-          className={ROUND_BUTTON_CLASS}
+          className={roundButtonClass}
           aria-label="Contact"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary">

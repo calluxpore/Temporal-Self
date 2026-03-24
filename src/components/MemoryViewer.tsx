@@ -125,6 +125,7 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
   const displayLinks = parsed.frontMatter.links ?? memory.links ?? [];
   const moodInfo = memory.mood ? moodOption(memory.mood) : undefined;
   const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng);
+  const placeDescriptor = memory.placeDescriptor?.trim();
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setActive(true));
@@ -181,6 +182,9 @@ export function MemoryViewer({ memory, onClose }: MemoryViewerProps) {
             <p className="font-mono mt-1 text-sm text-text-primary/90" title="Location">
               {parsed.frontMatter.location ?? (locationLoading ? '…' : location ?? '')}
             </p>
+          )}
+          {placeDescriptor && (
+            <p className="mt-1 text-sm italic text-text-secondary">"{placeDescriptor}"</p>
           )}
           {displayTags && displayTags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">

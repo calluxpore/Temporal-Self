@@ -72,6 +72,7 @@ function MapClickHandler({
   onMapDragStart,
   onMapZoomStart,
   mapBlurred,
+  hidePinHint = false,
   hintCenterLeft,
 }: {
   onMapClick: (latlng: L.LatLng) => void;
@@ -80,6 +81,7 @@ function MapClickHandler({
   onMapDragStart?: () => void;
   onMapZoomStart?: () => void;
   mapBlurred: boolean;
+  hidePinHint?: boolean;
   hintCenterLeft: string;
 }) {
   const [ripple, setRipple] = useState<{ x: number; y: number } | null>(null);
@@ -93,6 +95,7 @@ function MapClickHandler({
   const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
   const recallModalMemoryId = useMemoryStore((s) => s.recallModalMemoryId);
   const setRecallModalMemoryId = useMemoryStore((s) => s.setRecallModalMemoryId);
+  const setRecallMode = useMemoryStore((s) => s.setRecallMode);
   const endRecallSession = useMemoryStore((s) => s.endRecallSession);
 
   useMapEvents({
@@ -114,6 +117,7 @@ function MapClickHandler({
       if (recallModalMemoryId) {
         endRecallSession();
         setRecallModalMemoryId(null);
+        setRecallMode(null);
         return;
       }
 
@@ -155,7 +159,7 @@ function MapClickHandler({
           }}
         />
       )}
-      {hoverTooltip && !mapBlurred && (
+      {hoverTooltip && !mapBlurred && !hidePinHint && (
         <div
           className="pointer-events-none fixed z-[1000] font-mono text-[10px] tracking-widest text-accent opacity-90 transition-[left] duration-300"
           style={{
@@ -184,6 +188,7 @@ function MapContent({
   hiddenGroupIds,
   theme,
   mapBlurred,
+  hidePinHint,
   hintCenterLeft,
   showMarkers,
   visibleMemoryIds,
@@ -206,6 +211,7 @@ function MapContent({
   hiddenGroupIds: Set<string>;
   theme: 'dark' | 'light';
   mapBlurred: boolean;
+  hidePinHint: boolean;
   hintCenterLeft: string;
   showMarkers: boolean;
   visibleMemoryIds: Set<string>;
@@ -292,6 +298,7 @@ function MapContent({
         onMapDragStart={onMapDragStart}
         onMapZoomStart={onMapZoomStart}
         mapBlurred={mapBlurred}
+        hidePinHint={hidePinHint}
         hintCenterLeft={hintCenterLeft}
       />
       {searchHighlight?.type === 'area' && (
@@ -429,6 +436,7 @@ export function MapView({
   const theme = useMemoryStore((s) => s.theme);
   const mapStyle = useMemoryStore((s) => s.mapStyle);
   const pendingLatLng = useMemoryStore((s) => s.pendingLatLng);
+  const recallMode = useMemoryStore((s) => s.recallMode);
   const searchHighlight = useMemoryStore((s) => s.searchHighlight);
   const timelineEnabled = useMemoryStore((s) => s.timelineEnabled);
   const timelineLineStyle = useMemoryStore((s) => s.timelineLineStyle);
@@ -445,6 +453,7 @@ export function MapView({
   const setCardTargetMemoryId = useMemoryStore((s) => s.setCardTargetMemoryId);
 
   const mapBlurred = isAddingMemory;
+  const spatialWalkActive = recallMode === 'spatial';
   const hiddenGroupIds = useMemo(
     () => new Set(groups.filter((g) => g.hidden).map((g) => g.id)),
     [groups]
@@ -496,6 +505,7 @@ export function MapView({
 
   const onMarkerHover = useCallback(
     (memory: Memory, point: L.Point) => {
+      if (spatialWalkActive) return;
       if (!prefersHover) return;
       if (hoverHideTimeoutRef.current) {
         clearTimeout(hoverHideTimeoutRef.current);
@@ -504,10 +514,11 @@ export function MapView({
       setHoveredMemory(memory);
       setHoverPoint({ x: point.x, y: point.y });
     },
-    [prefersHover]
+    [prefersHover, spatialWalkActive]
   );
 
   const onMarkerHoverOut = useCallback(() => {
+    if (spatialWalkActive) return;
     if (isDraggingMemoryRef.current) return;
     if (cardPinnedBySidebarRef.current) return;
     hoverHideTimeoutRef.current = setTimeout(() => {
@@ -515,7 +526,7 @@ export function MapView({
       setHoverPoint(null);
       hoverHideTimeoutRef.current = null;
     }, HOVER_HIDE_DELAY_MS);
-  }, []);
+  }, [spatialWalkActive]);
 
   const onMapMouseMove = useCallback((e: L.LeafletMouseEvent) => {
     if (isDraggingMemoryRef.current) return;
@@ -542,10 +553,11 @@ export function MapView({
 
   const onMarkerClick = useCallback(
     (memory: Memory) => {
+      if (spatialWalkActive) return;
       closeHoverCard();
       setEditingMemory(memory);
     },
-    [closeHoverCard, setEditingMemory]
+    [closeHoverCard, setEditingMemory, spatialWalkActive]
   );
 
   const onCardMouseEnter = useCallback(() => {
@@ -741,8 +753,8 @@ export function MapView({
         <SetMapRef />
         <ZoomControlPlacement />
         <TileLayer url={tileUrl} subdomains="abcd" />
-        <HeatmapLayer memories={visibleMemories} enabled={heatmapEnabled} />
-        <MoodHeatmapLayer memories={visibleMemories} enabled={moodHeatmapEnabled} />
+        <HeatmapLayer memories={visibleMemories} enabled={heatmapEnabled && !spatialWalkActive} />
+        <MoodHeatmapLayer memories={visibleMemories} enabled={moodHeatmapEnabled && !spatialWalkActive} />
         <MapContent
           memories={visibleMemories}
           groups={groups}
@@ -753,6 +765,7 @@ export function MapView({
           hiddenGroupIds={hiddenGroupIds}
           theme={theme}
           mapBlurred={mapBlurred}
+          hidePinHint={spatialWalkActive}
           hintCenterLeft={hintCenterLeft}
           showMarkers={markersVisible}
           visibleMemoryIds={visibleMemoryIds}
@@ -768,7 +781,7 @@ export function MapView({
           onMapZoomStart={onMapZoomStart}
           onMarkerHover={onMarkerHover}
           onMarkerHoverOut={onMarkerHoverOut}
-          onMarkerClick={onMarkerClick}
+          onMarkerClick={spatialWalkActive ? undefined : onMarkerClick}
         />
         {dragFocusLatLng && (
           <Marker
@@ -779,7 +792,7 @@ export function MapView({
           />
         )}
       </MapContainer>
-      {hoveredMemoryLive && hoverPoint && (
+      {!spatialWalkActive && hoveredMemoryLive && hoverPoint && (
         <MemoryHoverCard
           memory={hoveredMemoryLive}
           point={hoverPoint}

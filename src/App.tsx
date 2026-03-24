@@ -8,6 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { AddMemoryModal } from './components/AddMemoryModal';
 import { MemoryViewer } from './components/MemoryViewer';
 import { RecallModal } from './components/RecallModal';
+import { SpatialWalkOverlay } from './components/SpatialWalkOverlay';
 import { LocationSearch } from './components/LocationSearch';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { OnboardingOverlay, ONBOARDING_STEP_COUNT } from './components/OnboardingOverlay';
@@ -33,7 +34,9 @@ function AppContent() {
   const setEditingMemory = useMemoryStore((s) => s.setEditingMemory);
   const setSelectedMemory = useMemoryStore((s) => s.setSelectedMemory);
   const recallModalMemoryId = useMemoryStore((s) => s.recallModalMemoryId);
+  const recallMode = useMemoryStore((s) => s.recallMode);
   const setRecallModalMemoryId = useMemoryStore((s) => s.setRecallModalMemoryId);
+  const setRecallMode = useMemoryStore((s) => s.setRecallMode);
   const recallSessionQueue = useMemoryStore((s) => s.recallSessionQueue);
   const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
   const endRecallSession = useMemoryStore((s) => s.endRecallSession);
@@ -48,6 +51,10 @@ function AppContent() {
   const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
   const settingsDrawerOpen = useMemoryStore((s) => s.settingsDrawerOpen);
   const memorySearchDrawerOpen = useMemoryStore((s) => s.memorySearchDrawerOpen);
+  const topShelfVisibleMain = useMemoryStore((s) => s.topShelfVisibleMain);
+  const topShelfVisibleSpatial = useMemoryStore((s) => s.topShelfVisibleSpatial);
+  const spatialWalkActive = recallMode === 'spatial';
+  const topShelfVisible = spatialWalkActive ? topShelfVisibleSpatial : topShelfVisibleMain;
 
   const onRequestNewMemory = useCallback(() => {
     if (map) {
@@ -105,7 +112,10 @@ function AppContent() {
       const rest = useMemoryStore.getState().recallSessionQueue.slice(1);
       useMemoryStore.getState().setRecallSessionQueue(rest);
       useMemoryStore.getState().setRecallModalMemoryId(rest[0] ?? null);
-      if (rest.length === 0) useMemoryStore.getState().endRecallSession();
+      if (rest.length === 0) {
+        useMemoryStore.getState().endRecallSession();
+        useMemoryStore.getState().setRecallMode(null);
+      }
       setViewerOpenedFromRecall(false);
     }
     setSelectedMemory(null);
@@ -163,11 +173,15 @@ function AppContent() {
         Skip to main content
       </a>
       <MapView splashActive={showSplash} onboardingActive={onboardingStep !== null} />
-      <Sidebar />
-      <LocationSearch />
-      <TopControlsBar />
-      <SettingsDrawer />
-      <MemorySearchDrawer />
+      <TopControlsBar visible={topShelfVisible} centerOnViewport={spatialWalkActive} />
+      {!spatialWalkActive && (
+        <>
+          <Sidebar tourActive={showSplash || onboardingStep !== null} spatialWalkActive={spatialWalkActive} />
+          <LocationSearch />
+          <SettingsDrawer />
+          <MemorySearchDrawer />
+        </>
+      )}
 
       {(showAddModal || showEditModal) && (
         <AddMemoryModal
@@ -185,12 +199,13 @@ function AppContent() {
         />
       )}
 
-      {recallMemory && (
+      {recallMemory && recallMode !== 'spatial' && (
         <RecallModal
           memory={recallMemory}
           onClose={() => {
             endRecallSession();
             setRecallModalMemoryId(null);
+            setRecallMode(null);
           }}
           onShowMemory={(memory) => {
             setViewerOpenedFromRecall(true);
@@ -201,11 +216,15 @@ function AppContent() {
           onAnswered={() => {
             const rest = recallSessionQueue.slice(1);
             setRecallSessionQueue(rest);
-            if (rest.length === 0) endRecallSession();
+            if (rest.length === 0) {
+              endRecallSession();
+              setRecallMode(null);
+            }
             setRecallModalMemoryId(rest[0] ?? null);
           }}
         />
       )}
+      {recallMode === 'spatial' && <SpatialWalkOverlay key={recallMemory?.id ?? 'complete'} memory={recallMemory} />}
       {onboardingStep !== null && !showSplash && (
         <OnboardingOverlay
           step={onboardingStep}

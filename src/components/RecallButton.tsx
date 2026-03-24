@@ -1,33 +1,60 @@
 import { useMemoryStore } from '../store/memoryStore';
 import { isDueForReview, getRecallSessionOrderedIds } from '../utils/spacedRepetition';
+import { memoriesInSidebarOrder } from '../utils/memoryOrder';
 
 type TopControlVariant = 'fixed' | 'bar';
 
+function hasValidCoordinates(lat: unknown, lng: unknown): boolean {
+  return Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+}
+
 export function RecallButton({ variant = 'fixed' }: { variant?: TopControlVariant }) {
   const memories = useMemoryStore((s) => s.memories);
+  const groups = useMemoryStore((s) => s.groups);
   const setRecallModalMemoryId = useMemoryStore((s) => s.setRecallModalMemoryId);
+  const setRecallMode = useMemoryStore((s) => s.setRecallMode);
   const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
+  const setRecallSessionInitialCount = useMemoryStore((s) => s.setRecallSessionInitialCount);
   const resetRecallSession = useMemoryStore((s) => s.resetRecallSession);
   const logStudyRecallSessionStarted = useMemoryStore((s) => s.logStudyRecallSessionStarted);
   const dueCount = memories.filter(isDueForReview).length;
+  const spatialEligibleCount = memories.filter((m) => hasValidCoordinates(m.lat, m.lng)).length;
 
-  const startRecall = () => {
+  const startFlashcardRecall = () => {
     const orderedIds = getRecallSessionOrderedIds(memories);
     if (orderedIds.length === 0) return;
     resetRecallSession();
     logStudyRecallSessionStarted(dueCount);
+    setRecallMode('flashcard');
+    setRecallSessionInitialCount(dueCount);
     setRecallSessionQueue(orderedIds);
     setRecallModalMemoryId(orderedIds[0]);
   };
 
-  const tooltipPositionClass =
-    variant === 'bar'
-      ? 'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100'
-      : 'pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100';
+  const startSpatialWalk = () => {
+    const orderedIds = memoriesInSidebarOrder(memories, groups).filter((m) => {
+      const valid = hasValidCoordinates(m.lat, m.lng);
+      if (!valid) {
+        console.warn('[Spatial Walk] Skipping memory without valid coordinates:', m.id);
+      }
+      return valid;
+    }).map((m) => m.id);
+    if (orderedIds.length === 0) {
+      window.alert('No memories with map coordinates are available for Spatial Walk.');
+      return;
+    }
+    const spatialDueCount = memories.filter((m) => isDueForReview(m) && hasValidCoordinates(m.lat, m.lng)).length;
+    resetRecallSession();
+    logStudyRecallSessionStarted(spatialDueCount);
+    setRecallMode('spatial');
+    setRecallSessionInitialCount(orderedIds.length);
+    setRecallSessionQueue(orderedIds);
+    setRecallModalMemoryId(orderedIds[0]);
+  };
 
   return (
     <div
-      className={variant === 'bar' ? 'relative z-[900] flex-shrink-0 group' : 'fixed z-[900] group'}
+      className={variant === 'bar' ? 'relative z-[900] flex flex-shrink-0 items-center gap-1.5' : 'fixed z-[900] flex items-center gap-2'}
       style={
         variant === 'bar'
           ? undefined
@@ -40,10 +67,12 @@ export function RecallButton({ variant = 'fixed' }: { variant?: TopControlVarian
     >
       <button
         type="button"
-        onClick={startRecall}
-        className="relative flex h-12 w-12 min-h-[44px] min-w-[44px] touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95"
-        aria-label={dueCount > 0 ? `Recall: ${dueCount} due` : 'Practice recall (spaced repetition)'}
-        title="Recall (Alt+R)"
+        onClick={startFlashcardRecall}
+        className={`relative flex touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 ${
+          variant === 'bar' ? 'h-10 w-10 min-h-[36px] min-w-[36px]' : 'h-12 w-12 min-h-[44px] min-w-[44px]'
+        }`}
+        aria-label={dueCount > 0 ? `Flashcards: ${dueCount} due` : 'Practice flashcards (spaced repetition)'}
+        title="Flashcards (Alt+R)"
       >
         <svg
           width="22"
@@ -68,9 +97,41 @@ export function RecallButton({ variant = 'fixed' }: { variant?: TopControlVarian
           </span>
         )}
       </button>
-      <span className={tooltipPositionClass}>
-        Recall (Alt+R)
-      </span>
+      <button
+        type="button"
+        onClick={startSpatialWalk}
+        disabled={spatialEligibleCount === 0}
+        className={`relative flex touch-target items-center justify-center rounded-full border border-border bg-surface shadow-lg transition-colors hover:bg-surface-elevated hover:border-accent active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
+          variant === 'bar' ? 'h-10 w-10 min-h-[36px] min-w-[36px]' : 'h-12 w-12 min-h-[44px] min-w-[44px]'
+        }`}
+        aria-label={spatialEligibleCount > 0 ? `Spatial walk: ${spatialEligibleCount} eligible` : 'Spatial walk unavailable'}
+        title={spatialEligibleCount === 0 ? 'Spatial walk (Alt+W) — no memories with coordinates' : 'Spatial walk (Alt+W)'}
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-text-secondary"
+        >
+          <circle cx="5" cy="18" r="1.8" />
+          <circle cx="19" cy="6" r="1.8" />
+          <path d="M6.8 17.2c3.4-1.8 4.3-4.7 6.7-6.3 1.5-1 3.3-1.4 5.5-1.1" />
+          <path d="M11.5 8.5l2.2 2.2 2.7-2.7" />
+        </svg>
+        {spatialEligibleCount > 0 && (
+          <span
+            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] font-medium text-white"
+            aria-hidden
+          >
+            {spatialEligibleCount > 99 ? '99+' : spatialEligibleCount}
+          </span>
+        )}
+      </button>
     </div>
   );
 }

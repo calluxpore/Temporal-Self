@@ -147,3 +147,16 @@ export function getRecallSessionOrderedIds(memories: RecallCandidate[]): string[
   notDue.sort(sortByCreated);
   return [...due.map((m) => m.id), ...notDue.map((m) => m.id)];
 }
+
+/** Build ordered list of due memory ids only (by nextReviewAt, then createdAt). */
+export function getDueRecallSessionOrderedIds(memories: RecallCandidate[]): string[] {
+  return memories
+    .filter(isDueForReview)
+    .sort((a, b) => {
+      const aDue = a.nextReviewAt ? new Date(a.nextReviewAt).getTime() : 0;
+      const bDue = b.nextReviewAt ? new Date(b.nextReviewAt).getTime() : 0;
+      if (aDue !== bDue) return aDue - bDue;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    })
+    .map((m) => m.id);
+}

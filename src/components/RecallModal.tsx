@@ -61,6 +61,29 @@ export function RecallModal({ memory, onClose, onShowMemory, onAnswered }: Recal
     onAnswered();
   }, [memory.id, onAnswered, logStudyRecallAnswered]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === '1') {
+        e.preventDefault();
+        handleRemember();
+        return;
+      }
+      if (e.key === '2') {
+        e.preventDefault();
+        handleShowMe();
+        return;
+      }
+      if (e.key === '3') {
+        e.preventDefault();
+        handleSkip();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleRemember, handleShowMe, handleSkip]);
+
   return (
     <>
       {/* pointer-events-none so the map stays interactive (pan/zoom); first map click closes via MapClickHandler. */}

@@ -54,6 +54,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     dateFilterFrom && dateFilterTo && dateFilterFrom === dateFilterTo ? dateFilterFrom : null;
 
   const [title, setTitle] = useState(editingMemory?.title ?? '');
+  const [placeDescriptor, setPlaceDescriptor] = useState(editingMemory?.placeDescriptor ?? '');
 
   const initialDate =
     notesFrontMatterInitial.date ??
@@ -231,6 +232,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     );
     const tagsField = tagsToSave.length ? tagsToSave : undefined;
     const linksField = linksToSave.length ? linksToSave : undefined;
+    const placeDescriptorField = placeDescriptor.trim().slice(0, 120) || undefined;
     return {
       titleToSave,
       dateToSave,
@@ -241,6 +243,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
       linksField,
       moodField: mood ?? undefined,
       audioField: audioDataUrl ?? undefined,
+      placeDescriptorField,
     };
   };
 
@@ -260,6 +263,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         links: payload.linksField,
         mood: payload.moodField,
         audioDataUrl: payload.audioField,
+        placeDescriptor: payload.placeDescriptorField,
       });
       logStudyMemoryUpdated(editingMemory.id);
       setEditingMemory(null);
@@ -280,6 +284,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         links: payload.linksField,
         mood: payload.moodField,
         audioDataUrl: payload.audioField,
+        placeDescriptor: payload.placeDescriptorField,
         nextReviewAt: toISODateString(getFirstReviewDate()),
         reviewCount: 0,
       };
@@ -307,6 +312,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
           links: payload.linksField,
           mood: payload.moodField,
           audioDataUrl: payload.audioField,
+          placeDescriptor: payload.placeDescriptorField,
         });
       }
     }
@@ -331,6 +337,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         links: payload.linksField,
         mood: payload.moodField,
         audioDataUrl: payload.audioField,
+        placeDescriptor: payload.placeDescriptorField,
       });
     }, 280);
     return () => {
@@ -345,6 +352,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
     groupId,
     mood,
     customLabel,
+    placeDescriptor,
     locationForYaml,
     initialDate,
     initialLocationFallback,
@@ -785,6 +793,29 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
             </div>
           </>
         )}
+
+        <div className="mt-5 space-y-3">
+          <div>
+            <label className="font-mono mb-1 block text-xs text-text-secondary">Location</label>
+            <input
+              type="text"
+              value={formatLocationCoords(effectiveLat, effectiveLng)}
+              readOnly
+              className="font-mono w-full rounded-lg border border-border bg-surface-elevated/70 px-3 py-2 text-sm text-text-secondary"
+            />
+          </div>
+          <div>
+            <label className="font-mono mb-1 block text-xs text-text-secondary">Sense of place</label>
+            <input
+              type="text"
+              value={placeDescriptor}
+              onChange={(e) => setPlaceDescriptor(e.target.value.slice(0, 120))}
+              maxLength={120}
+              placeholder="the wooden bench under the tree, afternoon light..."
+              className="font-mono w-full rounded-lg border border-border bg-surface-elevated/70 px-3 py-2 text-sm text-text-primary placeholder-text-muted outline-none transition-colors focus:border-accent/60 focus:ring-1 focus:ring-accent/40"
+            />
+          </div>
+        </div>
 
         <NotionNotesEditor value={notes} onChange={setNotes} />
 

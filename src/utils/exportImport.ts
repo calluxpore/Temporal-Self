@@ -73,6 +73,7 @@ const CSV_HEADERS = [
   'hidden',
   'order',
   'customLabel',
+  'placeDescriptor',
   'mood',
 ];
 
@@ -100,6 +101,7 @@ export function exportToCsv(memories: Memory[]): void {
         m.hidden ? '1' : '0',
         String(m.order ?? ''),
         escapeCsvCell(m.customLabel ?? ''),
+        escapeCsvCell(m.placeDescriptor ?? ''),
         escapeCsvCell(m.mood ?? ''),
       ].join(',')
     );
@@ -157,6 +159,7 @@ function normalizeMemory(m: unknown): Memory | null {
     hidden: o.hidden === true,
     order: typeof o.order === 'number' ? o.order : undefined,
     customLabel: typeof o.customLabel === 'string' ? o.customLabel : null,
+    placeDescriptor: typeof o.placeDescriptor === 'string' ? o.placeDescriptor : undefined,
     tags: Array.isArray(o.tags) ? (o.tags as unknown[]).filter((t): t is string => typeof t === 'string') : undefined,
     starred: o.starred === true,
     links: Array.isArray(o.links) ? (o.links as unknown[]).filter((u): u is string => typeof u === 'string') : undefined,
@@ -319,6 +322,7 @@ export function parseCsvToMemories(text: string): Memory[] {
       hidden: get(row, 'hidden') === '1',
       order: getNum(row, 'order') || undefined,
       customLabel: get(row, 'customlabel') || null,
+      placeDescriptor: get(row, 'placedescriptor') || undefined,
       ...(moodParsed ? { mood: moodParsed } : {}),
     });
   }

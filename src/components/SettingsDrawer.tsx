@@ -235,6 +235,9 @@ export function SettingsDrawer() {
             <h3 className="font-mono text-[11px] font-medium uppercase tracking-wide text-text-secondary">
               Keyboard shortcuts
             </h3>
+            <p className="mt-2 font-mono text-[10px] leading-relaxed text-text-muted">
+              Most shortcuts are ignored while focus is in a text field, search box, or the notes editor.
+            </p>
             <div className="mt-3 overflow-hidden rounded-lg border border-border">
               <table className="w-full border-collapse">
                 <tbody className="font-mono text-xs">
@@ -248,7 +251,15 @@ export function SettingsDrawer() {
                   </tr>
                   <tr className="border-b border-border">
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + R</td>
-                    <td className="px-3 py-2 text-text-primary">Start recall</td>
+                    <td className="px-3 py-2 text-text-primary">Start flashcard recall (SM-2)</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + W</td>
+                    <td className="px-3 py-2 text-text-primary">Start spatial walk recall (map as cue)</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + B</td>
+                    <td className="px-3 py-2 text-text-primary">Toggle top icon bar (saved separately in spatial walk)</td>
                   </tr>
                   <tr className="border-b border-border">
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + C</td>
@@ -260,7 +271,9 @@ export function SettingsDrawer() {
                   </tr>
                   <tr className="border-b border-border">
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Ctrl + S</td>
-                    <td className="px-3 py-2 text-text-primary">Open memory search</td>
+                    <td className="px-3 py-2 text-text-primary">
+                      Open archive search drawer (full-text; highlights on map)
+                    </td>
                   </tr>
                   <tr className="border-b border-border">
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + P</td>
@@ -306,9 +319,27 @@ export function SettingsDrawer() {
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Ctrl + R</td>
                     <td className="px-3 py-2 text-text-primary">Generate report</td>
                   </tr>
-                  <tr>
+                  <tr className="border-b border-border">
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Shift + S</td>
                     <td className="px-3 py-2 text-text-primary">Open settings</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">N</td>
+                    <td className="px-3 py-2 text-text-primary">New memory at map center</td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Escape</td>
+                    <td className="px-3 py-2 text-text-primary">
+                      Close modals / selection; end flashcard or spatial walk when the map has focus
+                    </td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Ctrl + Z</td>
+                    <td className="px-3 py-2 text-text-primary">Undo</td>
+                  </tr>
+                  <tr>
+                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Ctrl + Shift + Z / Ctrl + Y</td>
+                    <td className="px-3 py-2 text-text-primary">Redo</td>
                   </tr>
                 </tbody>
               </table>

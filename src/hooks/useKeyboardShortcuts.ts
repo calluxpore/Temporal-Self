@@ -1,15 +1,19 @@
 import { useEffect, useCallback } from 'react';
 import { useMemoryStore } from '../store/memoryStore';
 import { getRecallSessionOrderedIds, isDueForReview } from '../utils/spacedRepetition';
+import { memoriesInSidebarOrder } from '../utils/memoryOrder';
 
-export const FOCUS_SEARCH_EVENT = 'temporal-self-focus-search';
 export const HOTKEY_RESET_EVENT = 'temporal-self-hotkey-reset';
 export const HOTKEY_EXPORT_EVENT = 'temporal-self-hotkey-export';
 export const HOTKEY_IMPORT_EVENT = 'temporal-self-hotkey-import';
 export const HOTKEY_SHOT_EVENT = 'temporal-self-hotkey-shot';
 export const HOTKEY_REPORT_EVENT = 'temporal-self-hotkey-report';
 
-/** Global keyboard shortcuts: N = new memory, / = focus search, Escape = close modals, Ctrl+Z = undo, Ctrl+Shift+Z = redo. */
+function hasValidCoordinates(lat: unknown, lng: unknown): boolean {
+  return Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+}
+
+/** Global keyboard shortcuts: N = new memory, Escape = close modals, Ctrl+Z = undo, Ctrl+Shift+Z = redo. */
 export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
   const editingMemory = useMemoryStore((s) => s.editingMemory);
   const isAddingMemory = useMemoryStore((s) => s.isAddingMemory);
@@ -29,8 +33,11 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
   const mapStyle = useMemoryStore((s) => s.mapStyle);
   const setMapStyle = useMemoryStore((s) => s.setMapStyle);
   const memories = useMemoryStore((s) => s.memories);
+  const groups = useMemoryStore((s) => s.groups);
   const setRecallModalMemoryId = useMemoryStore((s) => s.setRecallModalMemoryId);
+  const setRecallMode = useMemoryStore((s) => s.setRecallMode);
   const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
+  const setRecallSessionInitialCount = useMemoryStore((s) => s.setRecallSessionInitialCount);
   const resetRecallSession = useMemoryStore((s) => s.resetRecallSession);
   const logStudyRecallSessionStarted = useMemoryStore((s) => s.logStudyRecallSessionStarted);
   const timelineLineStyle = useMemoryStore((s) => s.timelineLineStyle);
@@ -46,6 +53,11 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
   const setSidebarView = useMemoryStore((s) => s.setSidebarView);
   const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
   const setSettingsDrawerOpen = useMemoryStore((s) => s.setSettingsDrawerOpen);
+  const recallMode = useMemoryStore((s) => s.recallMode);
+  const topShelfVisibleMain = useMemoryStore((s) => s.topShelfVisibleMain);
+  const topShelfVisibleSpatial = useMemoryStore((s) => s.topShelfVisibleSpatial);
+  const setTopShelfVisibleMain = useMemoryStore((s) => s.setTopShelfVisibleMain);
+  const setTopShelfVisibleSpatial = useMemoryStore((s) => s.setTopShelfVisibleSpatial);
 
   const isTypingTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
@@ -58,7 +70,8 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
       {
         const st = useMemoryStore.getState();
         const recallId = st.recallModalMemoryId;
-        if (recallId && e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const spatialActive = st.recallMode === 'spatial';
+        if ((recallId || spatialActive) && e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
@@ -67,6 +80,7 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
             st.endRecallSession();
           }
           st.setRecallModalMemoryId(null);
+          st.setRecallMode(null);
           return;
         }
       }
@@ -76,7 +90,7 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
           e.target.blur();
           return;
         }
-        if (e.key === '/' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
       }
 
       if (e.key === 'Escape') {
@@ -91,12 +105,6 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
           setPendingLatLng(null);
           e.preventDefault();
         }
-        return;
-      }
-
-      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        window.dispatchEvent(new CustomEvent(FOCUS_SEARCH_EVENT));
         return;
       }
 
@@ -168,6 +176,30 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
           const dueCount = memories.filter(isDueForReview).length;
           resetRecallSession();
           logStudyRecallSessionStarted(dueCount);
+          setRecallMode('flashcard');
+          setRecallSessionInitialCount(dueCount);
+          setRecallSessionQueue(orderedIds);
+          setRecallModalMemoryId(orderedIds[0]);
+          return;
+        }
+        if (k === 'w') {
+          e.preventDefault();
+          const orderedIds = memoriesInSidebarOrder(memories, groups).filter((m) => {
+            const valid = hasValidCoordinates(m.lat, m.lng);
+            if (!valid) {
+              console.warn('[Spatial Walk] Skipping memory without valid coordinates:', m.id);
+            }
+            return valid;
+          }).map((m) => m.id);
+          if (orderedIds.length === 0) {
+            window.alert('No memories with map coordinates are available for Spatial Walk.');
+            return;
+          }
+          const dueCount = memories.filter((m) => isDueForReview(m) && hasValidCoordinates(m.lat, m.lng)).length;
+          resetRecallSession();
+          logStudyRecallSessionStarted(dueCount);
+          setRecallMode('spatial');
+          setRecallSessionInitialCount(orderedIds.length);
           setRecallSessionQueue(orderedIds);
           setRecallModalMemoryId(orderedIds[0]);
           return;
@@ -227,6 +259,15 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
           window.dispatchEvent(new CustomEvent(HOTKEY_IMPORT_EVENT));
           return;
         }
+        if (k === 'b') {
+          e.preventDefault();
+          if (recallMode === 'spatial') {
+            setTopShelfVisibleSpatial(!topShelfVisibleSpatial);
+          } else {
+            setTopShelfVisibleMain(!topShelfVisibleMain);
+          }
+          return;
+        }
       }
 
       if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -257,8 +298,11 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
       mapStyle,
       setMapStyle,
       memories,
+      groups,
       setRecallModalMemoryId,
+      setRecallMode,
       setRecallSessionQueue,
+      setRecallSessionInitialCount,
       resetRecallSession,
       logStudyRecallSessionStarted,
       timelineLineStyle,
@@ -274,6 +318,11 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
       setSidebarView,
       setMemorySearchDrawerOpen,
       setSettingsDrawerOpen,
+      recallMode,
+      topShelfVisibleMain,
+      topShelfVisibleSpatial,
+      setTopShelfVisibleMain,
+      setTopShelfVisibleSpatial,
     ]
   );
 
