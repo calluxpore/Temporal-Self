@@ -188,6 +188,9 @@ export function dataUrlToUint8Array(dataUrl: string): { bytes: Uint8Array; ext: 
   else if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
   else if (mime.includes('webp')) ext = 'webp';
   else   if (mime.includes('gif')) ext = 'gif';
+  else if (mime.includes('heic')) ext = 'heic';
+  else if (mime.includes('heif')) ext = 'heif';
+  else if (mime.includes('avif')) ext = 'avif';
   else if (mime.includes('webm')) ext = 'webm';
   else if (mime.includes('ogg')) ext = 'ogg';
   else if (mime.includes('mpeg') || mime.includes('mp3')) ext = 'mp3';

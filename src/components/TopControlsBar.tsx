@@ -15,9 +15,11 @@ import { ExportImportButtons } from './ExportImportButtons';
 export function TopControlsBar({
   visible = true,
   centerOnViewport = false,
+  onImportPhotos,
 }: {
   visible?: boolean;
   centerOnViewport?: boolean;
+  onImportPhotos?: (files: File[]) => Promise<void> | void;
 }) {
   const chromeCenterLeft = useChromeCenterLeft();
   const left = centerOnViewport ? '50%' : chromeCenterLeft;
@@ -50,7 +52,7 @@ export function TopControlsBar({
           <MoodHeatmapToggle variant="bar" />
           <MarkersToggle variant="bar" />
           <FavoritesToggle variant="bar" />
-          <ExportImportButtons variant="bar" />
+          <ExportImportButtons variant="bar" onImportPhotos={onImportPhotos} />
         </div>
       </div>
     </div>

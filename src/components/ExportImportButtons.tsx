@@ -64,7 +64,28 @@ type TopControlVariant = 'fixed' | 'bar';
 const TOOLTIP_CLASS_BAR =
   'pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 rounded-md border border-border bg-surface-elevated px-2 py-1 font-mono text-[10px] text-text-primary opacity-0 shadow-md transition-opacity group-hover:opacity-100';
 
-export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopControlVariant }) {
+function isLikelyPhotoFile(file: File): boolean {
+  if (file.type.toLowerCase().startsWith('image/')) return true;
+  const lower = file.name.toLowerCase();
+  return (
+    lower.endsWith('.heic') ||
+    lower.endsWith('.heif') ||
+    lower.endsWith('.avif') ||
+    lower.endsWith('.dng') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.png') ||
+    lower.endsWith('.webp')
+  );
+}
+
+export function ExportImportButtons({
+  variant = 'fixed',
+  onImportPhotos,
+}: {
+  variant?: TopControlVariant;
+  onImportPhotos?: (files: File[]) => Promise<void> | void;
+}) {
   const map = useMapRef();
   const memories = useMemoryStore((s) => s.memories);
   const groups = useMemoryStore((s) => s.groups);
@@ -72,6 +93,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
   const setGroups = useMemoryStore((s) => s.setGroups);
   const pushUndo = useMemoryStore((s) => s.pushUndo);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const photoImportInputRef = useRef<HTMLInputElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -192,12 +214,18 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
     importInputRef.current?.click();
   }, []);
 
+  const handlePhotoImportClick = useCallback(() => {
+    setImportError(null);
+    photoImportInputRef.current?.click();
+  }, []);
+
   const handleImportFile = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
+      const files = Array.from(e.target.files ?? []);
       e.target.value = '';
       setImportError(null);
-      if (!file) return;
+      if (!files.length) return;
+      const file = files[0];
       const reader = new FileReader();
       reader.onload = () => {
         const text = String(reader.result ?? '');
@@ -217,6 +245,22 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
       reader.readAsText(file);
     },
     []
+  );
+
+  const handlePhotoImportFile = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files ?? []);
+      e.target.value = '';
+      setImportError(null);
+      if (!files.length) return;
+      const imageFiles = files.filter(isLikelyPhotoFile);
+      if (!imageFiles.length) {
+        setImportError('Please select image files.');
+        return;
+      }
+      void onImportPhotos?.(imageFiles);
+    },
+    [onImportPhotos]
   );
 
   const confirmImport = useCallback(() => {
@@ -487,6 +531,15 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
         className="hidden"
         aria-hidden
       />
+      <input
+        ref={photoImportInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handlePhotoImportFile}
+        className="hidden"
+        aria-hidden
+      />
 
       {/* Export: round button; options in center modal */}
       <div
@@ -581,7 +634,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
         <span className={tooltipClass}>Import (Alt+I)</span>
       </div>
 
-      {/* Save screenshot: round button — captures map with current effects, saves to downloads */}
+      {/* Import photos: dedicated image picker (EXIF placement flow) */}
       <div
         className={variant === 'bar' ? 'relative z-[1100] group flex-shrink-0' : 'fixed z-[1100] group'}
         style={
@@ -589,6 +642,35 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
             ? undefined
             : {
                 top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 560px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+              }
+        }
+      >
+        <button
+          type="button"
+          onClick={handlePhotoImportClick}
+          className={roundButtonClass}
+          aria-label="Import photos"
+          title="Import photos"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary">
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+            <circle cx="12" cy="13" r="3" />
+            <path d="M19 5v4M17 7h4" />
+          </svg>
+        </button>
+        <span className={tooltipClass}>Import photos</span>
+      </div>
+
+      {/* Save screenshot: round button — captures map with current effects, saves to downloads */}
+      <div
+        className={variant === 'bar' ? 'relative z-[1100] group flex-shrink-0' : 'fixed z-[1100] group'}
+        style={
+          variant === 'bar'
+            ? undefined
+            : {
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 616px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
               }
@@ -621,7 +703,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           variant === 'bar'
             ? undefined
             : {
-                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 616px)',
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 672px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
               }
@@ -659,7 +741,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
           variant === 'bar'
             ? undefined
             : {
-                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 728px)',
+                top: 'calc(max(24px, env(safe-area-inset-top, 0px)) + 784px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
               }
@@ -704,7 +786,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
             top:
               variant === 'bar'
                 ? errorTop
-                : 'calc(max(24px, env(safe-area-inset-top, 0px)) + 632px)',
+                : 'calc(max(24px, env(safe-area-inset-top, 0px)) + 688px)',
             left: '50%',
             transform: 'translateX(-50%)',
           }}
@@ -721,7 +803,7 @@ export function ExportImportButtons({ variant = 'fixed' }: { variant?: TopContro
             top:
               variant === 'bar'
                 ? errorTop
-                : 'calc(max(24px, env(safe-area-inset-top, 0px)) + 568px)',
+                : 'calc(max(24px, env(safe-area-inset-top, 0px)) + 624px)',
             left: '50%',
             transform: 'translateX(-50%)',
           }}

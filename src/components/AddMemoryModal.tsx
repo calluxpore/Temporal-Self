@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import EmojiPicker, { type EmojiClickData, Theme, EmojiStyle } from 'emoji-picker-react';
 import { useMemoryStore } from '../store/memoryStore';
-import { compressImageToDataUrl, getMemoryImages } from '../utils/imageUtils';
+import { getMemoryImages, normalizePhonePhotoToDataUrl } from '../utils/imageUtils';
 import { getFirstReviewDate, toISODateString } from '../utils/spacedRepetition';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
@@ -21,6 +21,21 @@ function generateId(): string {
 
 function formatLocationCoords(lat: number, lng: number): string {
   return `${lat}, ${lng}`;
+}
+
+function isLikelyPhotoFile(file: File): boolean {
+  if (file.type.toLowerCase().startsWith('image/')) return true;
+  const lower = file.name.toLowerCase();
+  return (
+    lower.endsWith('.heic') ||
+    lower.endsWith('.heif') ||
+    lower.endsWith('.avif') ||
+    lower.endsWith('.dng') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.png') ||
+    lower.endsWith('.webp')
+  );
 }
 
 interface AddMemoryModalProps {
@@ -96,6 +111,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const groups = useMemoryStore((s) => s.groups);
   useReverseGeocode(effectiveLat, effectiveLng);
   const locationForYaml = formatLocationCoords(effectiveLat, effectiveLng);
@@ -178,12 +194,12 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
       const toAdd: string[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.type.startsWith('image/')) {
+        if (!isLikelyPhotoFile(file)) {
           setUploadError('Please choose image files only.');
           continue;
         }
         try {
-          const dataUrl = await compressImageToDataUrl(file);
+          const dataUrl = await normalizePhonePhotoToDataUrl(file);
           toAdd.push(dataUrl);
         } catch {
           setUploadError('Failed to process an image.');
@@ -211,7 +227,8 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   };
 
   const buildMemoryPayload = () => {
-    const titleToSave = title.trim() || 'Untitled';
+    const titleToSave =
+      editingMemory?.importedFromPhoto && title.trim() === '' ? '' : (title.trim() || 'Untitled');
     const reservedErr = vaultTitleFilenameError(titleToSave);
     if (reservedErr) {
       setVaultTitleError(reservedErr);
@@ -391,6 +408,12 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   }, []);
 
   useEffect(() => {
+    if (!editingMemory?.importedFromPhoto) return;
+    const id = window.setTimeout(() => titleInputRef.current?.focus(), 30);
+    return () => window.clearTimeout(id);
+  }, [editingMemory?.id, editingMemory?.importedFromPhoto]);
+
+  useEffect(() => {
     if (!emojiPickerOpen || !iconButtonRef.current) return;
     const el = iconButtonRef.current;
     const updateRect = () => {
@@ -504,6 +527,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
               )}
           </div>
           <input
+            ref={titleInputRef}
             type="text"
             value={title}
             onChange={(e) => {
@@ -517,6 +541,13 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
             aria-describedby={vaultTitleError ? 'vault-title-error' : undefined}
           />
         </div>
+        {editingMemory?.importedFromPhoto && !title.trim() && (
+          <div className="mt-2 rounded-md border border-border bg-surface-elevated/70 px-3 py-2">
+            <p className="font-mono text-[11px] text-text-secondary">
+              Imported from photo · add a title to finish
+            </p>
+          </div>
+        )}
         {vaultTitleError && (
           <p id="vault-title-error" className="mt-2 font-mono text-xs text-danger" role="alert">
             {vaultTitleError}

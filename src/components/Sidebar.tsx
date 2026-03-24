@@ -108,6 +108,7 @@ function MemoryListItem({
   const [editingLabel, setEditingLabel] = useState(false);
   const [editValue, setEditValue] = useState(memory.customLabel ?? '');
   const isHidden = memory.hidden ?? false;
+  const isUntitledImported = memory.importedFromPhoto === true && memory.title.trim() === '';
   const displayLabel = (memory.customLabel?.trim() || null) ?? label ?? '';
   const effectiveLabel = displayLabel || label || '';
 
@@ -206,8 +207,26 @@ function MemoryListItem({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-display text-text-primary truncate text-[11px] font-medium leading-tight">
-            {memoryNoteDisplayName(memory)}
+          <div className="flex items-center gap-1">
+            <div
+              className={`font-display truncate text-[11px] font-medium leading-tight ${
+                isUntitledImported ? 'italic text-text-muted' : 'text-text-primary'
+              }`}
+            >
+              {isUntitledImported ? 'Untitled photo' : memoryNoteDisplayName(memory)}
+            </div>
+            {memory.importedFromPhoto && (
+              <span
+                className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-surface text-text-muted"
+                title="Imported from photo"
+                aria-label="Imported from photo"
+              >
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+              </span>
+            )}
           </div>
           <div className="font-mono text-[10px] text-text-secondary leading-tight">
             {formatDate(memory.date)}
@@ -565,6 +584,7 @@ export function Sidebar({ tourActive = false, spatialWalkActive = false }: { tou
   const setSkipDeleteConfirmation = useMemoryStore((s) => s.setSkipDeleteConfirmation);
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [filterUntitledPhotos, setFilterUntitledPhotos] = useState(false);
 
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -655,8 +675,15 @@ export function Sidebar({ tourActive = false, spatialWalkActive = false }: { tou
   const visibleMemories = useMemo(() => {
     let list = filterStarred ? memories.filter((m) => m.starred) : memories;
     list = filterMemoriesByDate(list, dateFilterFrom, dateFilterTo);
+    if (filterUntitledPhotos) {
+      list = list.filter((m) => m.importedFromPhoto === true && m.title.trim() === '');
+    }
     return list;
-  }, [memories, filterStarred, dateFilterFrom, dateFilterTo]);
+  }, [memories, filterStarred, dateFilterFrom, dateFilterTo, filterUntitledPhotos]);
+  const untitledImportedCount = useMemo(
+    () => memories.filter((m) => m.importedFromPhoto === true && m.title.trim() === '').length,
+    [memories]
+  );
   const sortCompare = useCallback(
     (a: Memory, b: Memory) => compareMemories(a, b, sortBy, sortOrder),
     [sortBy, sortOrder]
@@ -802,6 +829,21 @@ export function Sidebar({ tourActive = false, spatialWalkActive = false }: { tou
             </button>
           </div>
           <div className="h-px bg-accent/40" />
+          {untitledImportedCount > 0 && (
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => setFilterUntitledPhotos((v) => !v)}
+                className={`font-mono min-h-[26px] rounded-full border px-2.5 text-[10px] transition-colors ${
+                  filterUntitledPhotos
+                    ? 'border-accent bg-accent/15 text-accent'
+                    : 'border-border text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                Untitled photos ({untitledImportedCount})
+              </button>
+            </div>
+          )}
         </div>
         <div
           className={

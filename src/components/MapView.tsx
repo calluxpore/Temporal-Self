@@ -388,9 +388,11 @@ function usePrefersHover() {
 export function MapView({
   splashActive = false,
   onboardingActive = false,
+  onMapClickForPhoto,
 }: {
   splashActive?: boolean;
   onboardingActive?: boolean;
+  onMapClickForPhoto?: (latlng: L.LatLng) => boolean;
 }) {
   const mapRef = useRef<L.Map | null>(null);
   const hoverHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -495,12 +497,13 @@ export function MapView({
   const onMapClick = useCallback(
     (latlng: L.LatLng) => {
       if (isDraggingMemoryRef.current) return;
+      if (onMapClickForPhoto?.(latlng)) return;
       closeHoverCard();
       setSearchHighlight(null);
       setPendingLatLng({ lat: latlng.lat, lng: latlng.lng });
       setIsAddingMemory(true);
     },
-    [closeHoverCard, setSearchHighlight, setPendingLatLng, setIsAddingMemory]
+    [closeHoverCard, onMapClickForPhoto, setSearchHighlight, setPendingLatLng, setIsAddingMemory]
   );
 
   const onMarkerHover = useCallback(

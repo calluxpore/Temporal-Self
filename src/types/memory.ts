@@ -42,6 +42,8 @@ export interface Memory {
   failedReviewCount?: number;
   /** Optional mood / emotion when the memory was recorded. */
   mood?: MemoryMood | null;
+  /** True when this memory was created from an EXIF photo import. */
+  importedFromPhoto?: boolean;
 }
 
 export interface Group {

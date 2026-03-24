@@ -18,6 +18,8 @@
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
     "emoji-picker-react": "^4.18.0",
+    "exifr": "^7.1.3",
+    "heic2any": "^0.0.4",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",

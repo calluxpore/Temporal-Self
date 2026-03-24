@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import exifr from 'exifr';
 import { useMemoryStore } from './store/memoryStore';
 import { MapProvider } from './context/MapContext';
 import { useMapRef } from './context/mapContextState';
@@ -16,9 +17,41 @@ import splashLogo from '../_assets/TS_Logo.png';
 import { TopControlsBar } from './components/TopControlsBar';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { MemorySearchDrawer } from './components/MemorySearchDrawer';
+import { UngeotaggedTray, type UngeotaggedPhotoItem } from './components/UngeotaggedTray';
+import { normalizePhonePhotoToDataUrl } from './utils/imageUtils';
+import { getFirstReviewDate, toISODateString } from './utils/spacedRepetition';
 import { useVaultSync } from './hooks/useVaultSync';
 const SPLASH_SEEN_STORAGE_KEY = 'temporal-self-splash-seen';
 const ONBOARDING_SEEN_STORAGE_KEY = 'temporal-self-onboarding-seen';
+
+type ProcessResult = {
+  file: File;
+  dataUrl: string;
+  lat: number | null;
+  lng: number | null;
+  dateTaken: string | null;
+};
+
+type ImportToastState = {
+  message: string;
+  actionLabel?: string;
+  action?: () => void;
+} | null;
+
+function isLikelyPhotoFile(file: File): boolean {
+  if (file.type.toLowerCase().startsWith('image/')) return true;
+  const lower = file.name.toLowerCase();
+  return (
+    lower.endsWith('.heic') ||
+    lower.endsWith('.heif') ||
+    lower.endsWith('.avif') ||
+    lower.endsWith('.dng') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.png') ||
+    lower.endsWith('.webp')
+  );
+}
 
 function AppContent() {
   const map = useMapRef();
@@ -40,6 +73,8 @@ function AppContent() {
   const recallSessionQueue = useMemoryStore((s) => s.recallSessionQueue);
   const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
   const endRecallSession = useMemoryStore((s) => s.endRecallSession);
+  const addMemory = useMemoryStore((s) => s.addMemory);
+  const logStudyMemoryCreated = useMemoryStore((s) => s.logStudyMemoryCreated);
   const [showSplash, setShowSplash] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(SPLASH_SEEN_STORAGE_KEY) !== 'true';
@@ -55,6 +90,12 @@ function AppContent() {
   const topShelfVisibleSpatial = useMemoryStore((s) => s.topShelfVisibleSpatial);
   const spatialWalkActive = recallMode === 'spatial';
   const topShelfVisible = spatialWalkActive ? topShelfVisibleSpatial : topShelfVisibleMain;
+  const [isDroppingPhotos, setIsDroppingPhotos] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState<{ done: number; total: number } | null>(null);
+  const [importToast, setImportToast] = useState<ImportToastState>(null);
+  const [ungeotaggedPhotos, setUngeotaggedPhotos] = useState<UngeotaggedPhotoItem[]>([]);
+  const [trayOpen, setTrayOpen] = useState(false);
+  const [placeModePhotoId, setPlaceModePhotoId] = useState<string | null>(null);
 
   const onRequestNewMemory = useCallback(() => {
     if (map) {
@@ -70,6 +111,147 @@ function AppContent() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+  useEffect(() => {
+    if (!importToast) return;
+    const id = window.setTimeout(() => setImportToast(null), 8000);
+    return () => window.clearTimeout(id);
+  }, [importToast]);
+  useEffect(() => {
+    if (ungeotaggedPhotos.length === 0) {
+      setTrayOpen(false);
+      setPlaceModePhotoId(null);
+    }
+  }, [ungeotaggedPhotos.length]);
+
+  const createImportedMemory = useCallback(
+    (payload: { lat: number; lng: number; dataUrl: string; dateTaken: string | null }) => {
+      const memory = {
+        id: crypto.randomUUID(),
+        lat: payload.lat,
+        lng: payload.lng,
+        title: '',
+        date: payload.dateTaken ?? new Date().toISOString().slice(0, 10),
+        notes: '',
+        imageDataUrl: payload.dataUrl,
+        imageDataUrls: [payload.dataUrl],
+        createdAt: new Date().toISOString(),
+        tags: [],
+        importedFromPhoto: true,
+        nextReviewAt: toISODateString(getFirstReviewDate()),
+        reviewCount: 0,
+      };
+      addMemory(memory);
+      logStudyMemoryCreated(memory.id);
+      return memory;
+    },
+    [addMemory, logStudyMemoryCreated]
+  );
+
+  const processPhoto = useCallback(async (file: File): Promise<ProcessResult> => {
+    let lat: number | null = null;
+    let lng: number | null = null;
+    let dateTaken: string | null = null;
+    try {
+      const exif = await exifr.parse(file, {
+        gps: true,
+        tiff: true,
+        exif: true,
+        pick: ['GPSLatitude', 'GPSLongitude', 'GPSLatitudeRef', 'GPSLongitudeRef', 'DateTimeOriginal', 'CreateDate'],
+      });
+      if (typeof exif?.latitude === 'number' && typeof exif?.longitude === 'number') {
+        lat = exif.latitude;
+        lng = exif.longitude;
+      }
+      const rawDate = exif?.DateTimeOriginal || exif?.CreateDate;
+      if (rawDate instanceof Date) dateTaken = rawDate.toISOString().split('T')[0] ?? null;
+    } catch {
+      // EXIF parse errors are treated as missing metadata.
+    }
+    const dataUrl = await normalizePhonePhotoToDataUrl(file);
+    return { file, dataUrl, lat, lng, dateTaken };
+  }, []);
+
+  const runPhotoImport = useCallback(
+    async (files: File[]) => {
+      const imageFiles = files.filter(isLikelyPhotoFile);
+      if (!imageFiles.length) return;
+      setProcessingProgress({ done: 0, total: imageFiles.length });
+      let results: ProcessResult[] = [];
+      if (imageFiles.length > 10) {
+        for (let i = 0; i < imageFiles.length; i++) {
+          const result = await processPhoto(imageFiles[i]);
+          results.push(result);
+          setProcessingProgress({ done: i + 1, total: imageFiles.length });
+        }
+      } else {
+        results = await Promise.all(
+          imageFiles.map(async (file, idx) => {
+            const result = await processPhoto(file);
+            setProcessingProgress({ done: idx + 1, total: imageFiles.length });
+            return result;
+          })
+        );
+      }
+      setProcessingProgress(null);
+
+      const geotagged = results.filter((r) => r.lat != null && r.lng != null) as Array<
+        ProcessResult & { lat: number; lng: number }
+      >;
+      const ungeotagged = results.filter((r) => r.lat == null || r.lng == null);
+
+      geotagged.forEach((r) => {
+        createImportedMemory({ lat: r.lat, lng: r.lng, dataUrl: r.dataUrl, dateTaken: r.dateTaken });
+      });
+      if (geotagged.length > 0 && map) {
+        map.fitBounds(
+          geotagged.map((r) => [r.lat, r.lng] as [number, number]),
+          { padding: [60, 60], maxZoom: 14 }
+        );
+      }
+
+      const nextUngeotagged = ungeotagged.map((r) => ({
+        id: crypto.randomUUID(),
+        fileName: r.file.name,
+        dataUrl: r.dataUrl,
+        dateTaken: r.dateTaken,
+      }));
+      if (nextUngeotagged.length) {
+        setUngeotaggedPhotos((prev) => [...prev, ...nextUngeotagged]);
+      }
+
+      const placed = geotagged.length;
+      const missing = nextUngeotagged.length;
+      if (placed > 0 && missing === 0) {
+        setImportToast({ message: `${placed} photo${placed === 1 ? '' : 's'} placed on the map` });
+      } else if (placed > 0 && missing > 0) {
+        setImportToast({
+          message: `${placed} photos placed · ${missing} had no GPS`,
+          actionLabel: `Review ${missing} ungeotagged`,
+          action: () => setTrayOpen(true),
+        });
+      } else {
+        setImportToast({
+          message: 'No GPS data found in these photos',
+          actionLabel: 'Place manually',
+          action: () => setTrayOpen(true),
+        });
+      }
+      if (missing > 0) setTrayOpen(true);
+    },
+    [createImportedMemory, map, processPhoto]
+  );
+
+  const placeUngeotaggedPhoto = useCallback(
+    (photoId: string, lat: number, lng: number) => {
+      const photo = ungeotaggedPhotos.find((p) => p.id === photoId);
+      if (!photo) return false;
+      createImportedMemory({ lat, lng, dataUrl: photo.dataUrl, dateTaken: photo.dateTaken });
+      setUngeotaggedPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      setPlaceModePhotoId(null);
+      return true;
+    },
+    [createImportedMemory, ungeotaggedPhotos]
+  );
 
   const showAddModal = isAddingMemory && pendingLatLng;
   const showEditModal = !!editingMemory;
@@ -148,7 +330,42 @@ function AppContent() {
   }, []);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[var(--color-map-water)]" id="main-content" role="main">
+    <div
+      className="relative h-full w-full overflow-hidden bg-[var(--color-map-water)]"
+      id="main-content"
+      role="main"
+      onDragOver={(e) => {
+        const hasImage = Array.from(e.dataTransfer.items ?? []).some((item) => {
+          if (item.type.toLowerCase().startsWith('image/')) return true;
+          const lower = item.type.toLowerCase();
+          return lower.includes('heic') || lower.includes('heif') || lower.includes('avif');
+        });
+        if (hasImage) {
+          e.preventDefault();
+          setIsDroppingPhotos(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setIsDroppingPhotos(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDroppingPhotos(false);
+        const trayPhotoId = e.dataTransfer.getData('application/x-temporal-photo-id');
+        if (trayPhotoId && map) {
+          const rect = map.getContainer().getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          const ll = map.containerPointToLatLng([x, y]);
+          placeUngeotaggedPhoto(trayPhotoId, ll.lat, ll.lng);
+          return;
+        }
+        const files = Array.from(e.dataTransfer.files).filter(isLikelyPhotoFile);
+        if (!files.length) return;
+        void runPhotoImport(files);
+      }}
+    >
       {showSplash && (
         <button
           type="button"
@@ -172,8 +389,19 @@ function AppContent() {
       >
         Skip to main content
       </a>
-      <MapView splashActive={showSplash} onboardingActive={onboardingStep !== null} />
-      <TopControlsBar visible={topShelfVisible} centerOnViewport={spatialWalkActive} />
+      <MapView
+        splashActive={showSplash}
+        onboardingActive={onboardingStep !== null}
+        onMapClickForPhoto={(latlng) => {
+          if (!placeModePhotoId) return false;
+          return placeUngeotaggedPhoto(placeModePhotoId, latlng.lat, latlng.lng);
+        }}
+      />
+      <TopControlsBar
+        visible={topShelfVisible}
+        centerOnViewport={spatialWalkActive}
+        onImportPhotos={runPhotoImport}
+      />
       {!spatialWalkActive && (
         <>
           <Sidebar tourActive={showSplash || onboardingStep !== null} spatialWalkActive={spatialWalkActive} />
@@ -233,6 +461,48 @@ function AppContent() {
           onSkip={handleOnboardingSkip}
         />
       )}
+      {(isDroppingPhotos || processingProgress) && (
+        <div className="pointer-events-none absolute inset-0 z-[1250] flex items-center justify-center bg-[rgba(0,0,0,0.35)]">
+          <div className="pointer-events-none text-center text-white">
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/10">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                <circle cx="12" cy="13" r="3" />
+              </svg>
+            </div>
+            <p className="text-[18px]">Drop photos to place on map</p>
+            <p className="text-[13px] opacity-70">GPS location and date will be read automatically</p>
+            {processingProgress && (
+              <p className="mt-2 text-[13px]">
+                Processing {Math.max(1, processingProgress.done)} of {processingProgress.total} photos...
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+      {importToast && (
+        <div className="fixed bottom-4 right-4 z-[1500] rounded-lg border border-border bg-surface px-3 py-2 shadow-lg">
+          <p className="font-mono text-[12px] text-text-primary">{importToast.message}</p>
+          {importToast.action && importToast.actionLabel && (
+            <button type="button" onClick={importToast.action} className="mt-1 text-[11px] text-accent hover:underline">
+              {importToast.actionLabel}
+            </button>
+          )}
+        </div>
+      )}
+      <UngeotaggedTray
+        photos={ungeotaggedPhotos}
+        open={trayOpen}
+        placeModeActive={placeModePhotoId != null}
+        onClose={() => {
+          setTrayOpen(false);
+          setPlaceModePhotoId(null);
+        }}
+        onStartPlaceMode={(photoId) => {
+          setTrayOpen(true);
+          setPlaceModePhotoId(photoId);
+        }}
+      />
     </div>
   );
 }
