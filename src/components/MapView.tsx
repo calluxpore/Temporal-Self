@@ -11,6 +11,8 @@ import { MemoryHoverCard } from './MemoryHoverCard';
 import { SetMapRef } from './SetMapRef';
 import { HeatmapLayer } from './HeatmapLayer';
 import { MoodHeatmapLayer } from './MoodHeatmapLayer';
+import { TerrainContoursLayer } from './TerrainContoursLayer';
+import { BoundariesLayer } from './BoundariesLayer';
 import type { Memory, Group } from '../types/memory';
 import type { SearchHighlight } from '../store/memoryStore';
 import { getMemoryLabel } from '../utils/memoryLabel';
@@ -424,6 +426,8 @@ export function MapView({
   const heatmapEnabled = useMemoryStore((s) => s.heatmapEnabled);
   const moodHeatmapEnabled = useMemoryStore((s) => s.moodHeatmapEnabled);
   const markersVisible = useMemoryStore((s) => s.markersVisible);
+  const terrainContoursEnabled = useMemoryStore((s) => s.terrainContoursEnabled);
+  const boundariesEnabled = useMemoryStore((s) => s.boundariesEnabled);
   const visibleMemories = useMemo(() => {
     let list = filterStarred ? memories.filter((m) => m.starred) : memories;
     list = filterMemoriesByDate(list, dateFilterFrom, dateFilterTo);
@@ -756,6 +760,8 @@ export function MapView({
         <SetMapRef />
         <ZoomControlPlacement />
         <TileLayer url={tileUrl} subdomains="abcd" />
+        <TerrainContoursLayer enabled={terrainContoursEnabled && !spatialWalkActive} />
+        <BoundariesLayer enabled={boundariesEnabled && !spatialWalkActive} />
         <HeatmapLayer memories={visibleMemories} enabled={heatmapEnabled && !spatialWalkActive} />
         <MoodHeatmapLayer memories={visibleMemories} enabled={moodHeatmapEnabled && !spatialWalkActive} />
         <MapContent

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import EmojiPicker, { type EmojiClickData, Theme, EmojiStyle } from 'emoji-picker-react';
 import { useMemoryStore } from '../store/memoryStore';
 import { getMemoryImages, normalizePhonePhotoToDataUrl } from '../utils/imageUtils';
+import { analyzePhoto } from '../utils/analyzePhoto';
 import { getFirstReviewDate, toISODateString } from '../utils/spacedRepetition';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
@@ -36,6 +37,26 @@ function isLikelyPhotoFile(file: File): boolean {
     lower.endsWith('.png') ||
     lower.endsWith('.webp')
   );
+}
+
+async function resizeImageIfNeeded(dataUrl: string, maxPx: number): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const { width, height } = img;
+      if (width <= maxPx && height <= maxPx) return resolve(dataUrl);
+      const scale = maxPx / Math.max(width, height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(dataUrl);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 interface AddMemoryModalProps {
@@ -108,16 +129,24 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [vaultTitleError, setVaultTitleError] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSuggestedTitle, setAiSuggestedTitle] = useState(false);
+  const [aiSuggestedLabel, setAiSuggestedLabel] = useState(false);
+  const [aiSuggestedPlace, setAiSuggestedPlace] = useState(false);
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const groups = useMemoryStore((s) => s.groups);
+  const aiProvider = useMemoryStore((s) => s.aiProvider);
+  const aiApiKey = useMemoryStore((s) => s.aiApiKey);
   useReverseGeocode(effectiveLat, effectiveLng);
   const locationForYaml = formatLocationCoords(effectiveLat, effectiveLng);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const voiceSupported = useMemo(() => isVoiceRecordingSupported(), []);
+  const canSuggestWithAi = !!aiProvider && !!aiApiKey.trim() && imageDataUrls.length > 0;
 
   const stopMediaStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -225,6 +254,27 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const removeImageAt = (index: number) => {
     setImageDataUrls((prev) => prev.filter((_, i) => i !== index));
   };
+
+  const runAiSuggestion = useCallback(async () => {
+    if (!aiProvider || !aiApiKey.trim() || !imageDataUrls[0]) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const resized = await resizeImageIfNeeded(imageDataUrls[0], 900);
+      const result = await analyzePhoto(resized, aiProvider, aiApiKey.trim());
+      setTitle(result.title);
+      setCustomLabel(result.emoji);
+      setPlaceDescriptor(result.placeDescriptor);
+      setAiSuggestedTitle(true);
+      setAiSuggestedLabel(true);
+      setAiSuggestedPlace(true);
+      setVaultTitleError(null);
+    } catch {
+      setAiError('Analysis failed — check your API key in Settings');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiProvider, aiApiKey, imageDataUrls]);
 
   const buildMemoryPayload = () => {
     const titleToSave =
@@ -516,6 +566,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
                     searchPlaceHolder="Search emoji"
                     onEmojiClick={(emojiData: EmojiClickData) => {
                       setCustomLabel(emojiData.emoji);
+                      setAiSuggestedLabel(false);
                       setEmojiPickerOpen(false);
                     }}
                     width={320}
@@ -533,6 +584,7 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
             onChange={(e) => {
               setTitle(e.target.value);
               setVaultTitleError(null);
+              setAiSuggestedTitle(false);
             }}
             placeholder="Name this memory..."
             className="font-display min-w-0 flex-1 border-none bg-transparent text-xl font-semibold text-text-primary placeholder-text-muted outline-none md:text-2xl md:font-bold"
@@ -540,6 +592,11 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
             aria-invalid={vaultTitleError ? true : undefined}
             aria-describedby={vaultTitleError ? 'vault-title-error' : undefined}
           />
+          {aiSuggestedTitle && (
+            <span className="ml-2 rounded-full border border-[#ef9f27]/50 bg-[#ef9f27]/15 px-2 py-0.5 font-mono text-[10px] text-[#efc26f]">
+              AI suggested
+            </span>
+          )}
         </div>
         {editingMemory?.importedFromPhoto && !title.trim() && (
           <div className="mt-2 rounded-md border border-border bg-surface-elevated/70 px-3 py-2">
@@ -551,6 +608,11 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
         {vaultTitleError && (
           <p id="vault-title-error" className="mt-2 font-mono text-xs text-danger" role="alert">
             {vaultTitleError}
+          </p>
+        )}
+        {aiError && (
+          <p className="mt-2 font-mono text-xs text-danger" role="alert">
+            {aiError}
           </p>
         )}
 
@@ -699,6 +761,33 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
             </div>
           </div>
         </div>
+        {canSuggestWithAi && (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void runAiSuggestion()}
+              disabled={aiLoading}
+              className="font-mono inline-flex min-h-[34px] items-center gap-1.5 rounded-md border border-border bg-surface-elevated/70 px-2.5 py-1 text-[11px] text-text-primary transition-colors hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {aiLoading ? (
+                <>
+                  <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border border-text-muted border-t-transparent" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <span aria-hidden>✦</span>
+                  Suggest with AI
+                </>
+              )}
+            </button>
+            {aiSuggestedLabel && (
+              <span className="rounded-full border border-[#ef9f27]/50 bg-[#ef9f27]/15 px-2 py-0.5 font-mono text-[10px] text-[#efc26f]">
+                AI suggested
+              </span>
+            )}
+          </div>
+        )}
         {(audioError || !voiceSupported) && (
           <div className="mt-2 space-y-1">
             {audioError && (
@@ -840,11 +929,19 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
             <input
               type="text"
               value={placeDescriptor}
-              onChange={(e) => setPlaceDescriptor(e.target.value.slice(0, 120))}
+              onChange={(e) => {
+                setPlaceDescriptor(e.target.value.slice(0, 120));
+                setAiSuggestedPlace(false);
+              }}
               maxLength={120}
               placeholder="the wooden bench under the tree, afternoon light..."
               className="font-mono w-full rounded-lg border border-border bg-surface-elevated/70 px-3 py-2 text-sm text-text-primary placeholder-text-muted outline-none transition-colors focus:border-accent/60 focus:ring-1 focus:ring-accent/40"
             />
+            {aiSuggestedPlace && (
+              <span className="mt-1 inline-block rounded-full border border-[#ef9f27]/50 bg-[#ef9f27]/15 px-2 py-0.5 font-mono text-[10px] text-[#efc26f]">
+                AI suggested
+              </span>
+            )}
           </div>
         </div>
 

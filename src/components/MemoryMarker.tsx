@@ -17,6 +17,7 @@ function escapeHtml(s: string): string {
 function createMarkerIcon(
   memory: Memory,
   isActive: boolean,
+  isAiPending: boolean,
   label: string | undefined,
   routeRole?: 'start' | 'end',
   searchHit?: boolean
@@ -26,6 +27,7 @@ function createMarkerIcon(
   const markerInner = `
     <div class="memory-marker ${isActive ? 'active' : ''} ${hitClass} ${roleClass}" data-memory-id="${memory.id}">
       ${isActive ? '<div class="marker-pulse-ring"></div>' : ''}
+      ${isAiPending ? '<div class="marker-ai-pulse-ring"></div>' : ''}
       <div class="marker-dot" title="${escapeHtml(memoryNoteDisplayName(memory))}"></div>
       <div class="marker-tooltip">${escapeHtml(memoryNoteDisplayName(memory))}</div>
     </div>
@@ -71,10 +73,13 @@ export function MemoryMarker({
   const map = useMap();
   const markerRef = useRef<L.Marker>(null);
   const isActive = useMemoryStore((s) => s.selectedMemoryId === memory.id);
+  const isAiPending = useMemoryStore(
+    (s) => s.aiProcessing === memory.id || s.aiQueue.includes(memory.id)
+  );
 
   const icon = useMemo(
-    () => createMarkerIcon(memory, isActive, label, routeRole, searchHit),
-    [memory, isActive, label, routeRole, searchHit]
+    () => createMarkerIcon(memory, isActive, isAiPending, label, routeRole, searchHit),
+    [memory, isActive, isAiPending, label, routeRole, searchHit]
   );
 
   const handleClick = (e: L.LeafletMouseEvent) => {

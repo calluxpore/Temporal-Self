@@ -11,6 +11,8 @@ import { MoodHeatmapToggle } from './MoodHeatmapToggle';
 import { MarkersToggle } from './MarkersToggle';
 import { FavoritesToggle } from './FavoritesToggle';
 import { ExportImportButtons } from './ExportImportButtons';
+import { TerrainContoursToggle } from './TerrainContoursToggle';
+import { BoundariesToggle } from './BoundariesToggle';
 
 export function TopControlsBar({
   visible = true,
@@ -46,6 +48,8 @@ export function TopControlsBar({
           <ResetButton variant="bar" />
           <MemorySearchButton variant="bar" />
           <MapStyleToggle variant="bar" />
+          <TerrainContoursToggle variant="bar" />
+          <BoundariesToggle variant="bar" />
           <TimelineLineStyleToggle variant="bar" />
           <TimelineToggle variant="bar" />
           <HeatmapToggle variant="bar" />

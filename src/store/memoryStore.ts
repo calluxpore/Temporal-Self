@@ -51,6 +51,10 @@ interface MemoryState {
   moodHeatmapEnabled: boolean;
   /** Show memory markers and labels on map. */
   markersVisible: boolean;
+  /** Overlay terrain/contour context on top of base tiles. */
+  terrainContoursEnabled: boolean;
+  /** Overlay country/region boundary lines. */
+  boundariesEnabled: boolean;
   /** Top controls shelf visibility in main screens. */
   topShelfVisibleMain: boolean;
   /** Top controls shelf visibility during spatial walk. */
@@ -122,6 +126,17 @@ interface MemoryState {
   /** Bumped when vault folder is linked or cleared so disk writes pick up the change. */
   vaultLinkNonce: number;
   bumpVaultLinkNonce: () => void;
+  aiProvider: 'gemini' | 'openai' | 'claude' | null;
+  aiApiKey: string;
+  aiAutoAnalyze: boolean;
+  aiQueue: string[];
+  aiProcessing: string | null;
+  setAiProvider: (p: 'gemini' | 'openai' | 'claude' | null) => void;
+  setAiApiKey: (key: string) => void;
+  setAiAutoAnalyze: (v: boolean) => void;
+  enqueueAiAnalysis: (memoryId: string) => void;
+  dequeueAiAnalysis: () => void;
+  completeAiAnalysis: () => void;
   setSkipDeleteConfirmation: (value: boolean) => void;
   setMemories: (memories: Memory[]) => void;
   setGroups: (groups: Group[]) => void;
@@ -132,6 +147,8 @@ interface MemoryState {
   setHeatmapEnabled: (value: boolean) => void;
   setMoodHeatmapEnabled: (value: boolean) => void;
   setMarkersVisible: (value: boolean) => void;
+  setTerrainContoursEnabled: (value: boolean) => void;
+  setBoundariesEnabled: (value: boolean) => void;
   setTopShelfVisibleMain: (value: boolean) => void;
   setTopShelfVisibleSpatial: (value: boolean) => void;
   setSidebarView: (view: MemoryState['sidebarView']) => void;
@@ -233,6 +250,8 @@ export const useMemoryStore = create<MemoryState>()(
       heatmapEnabled: false,
       moodHeatmapEnabled: false,
       markersVisible: true,
+      terrainContoursEnabled: false,
+      boundariesEnabled: false,
       topShelfVisibleMain: true,
       topShelfVisibleSpatial: false,
       sidebarView: 'list',
@@ -258,6 +277,11 @@ export const useMemoryStore = create<MemoryState>()(
       memorySearchDrawerOpen: false,
       memorySearchMatchIds: null,
       vaultLinkNonce: 0,
+      aiProvider: null,
+      aiApiKey: '',
+      aiAutoAnalyze: false,
+      aiQueue: [],
+      aiProcessing: null,
 
       setVaultElectronPath: (vaultElectronPath) => set({ vaultElectronPath }),
       setVaultLastSyncMeta: (vaultLastSyncAt, vaultLastSyncError) =>
@@ -289,6 +313,26 @@ export const useMemoryStore = create<MemoryState>()(
         }),
       setMemorySearchMatchIds: (memorySearchMatchIds) => set({ memorySearchMatchIds }),
       bumpVaultLinkNonce: () => set((s) => ({ vaultLinkNonce: s.vaultLinkNonce + 1 })),
+      setAiProvider: (aiProvider) => set({ aiProvider }),
+      setAiApiKey: (aiApiKey) => set({ aiApiKey }),
+      setAiAutoAnalyze: (aiAutoAnalyze) => set({ aiAutoAnalyze }),
+      enqueueAiAnalysis: (memoryId) =>
+        set((state) => {
+          if (!memoryId || state.aiQueue.includes(memoryId) || state.aiProcessing === memoryId) return state;
+          const memory = state.memories.find((m) => m.id === memoryId);
+          if (!memory) return state;
+          const alreadyAnalyzed =
+            !!memory.title?.trim() && !!memory.customLabel?.trim() && !!memory.placeDescriptor?.trim();
+          if (alreadyAnalyzed) return state;
+          return { aiQueue: [...state.aiQueue, memoryId] };
+        }),
+      dequeueAiAnalysis: () =>
+        set((state) => {
+          if (state.aiQueue.length === 0) return state;
+          const [next, ...rest] = state.aiQueue;
+          return { aiQueue: rest, aiProcessing: next };
+        }),
+      completeAiAnalysis: () => set({ aiProcessing: null }),
 
       setRecallModalMemoryId: (id) => set({ recallModalMemoryId: id }),
       setRecallMode: (mode) => set({ recallMode: mode }),
@@ -503,6 +547,8 @@ export const useMemoryStore = create<MemoryState>()(
       setHeatmapEnabled: (heatmapEnabled) => set({ heatmapEnabled }),
       setMoodHeatmapEnabled: (moodHeatmapEnabled) => set({ moodHeatmapEnabled }),
       setMarkersVisible: (markersVisible) => set({ markersVisible }),
+      setTerrainContoursEnabled: (terrainContoursEnabled) => set({ terrainContoursEnabled }),
+      setBoundariesEnabled: (boundariesEnabled) => set({ boundariesEnabled }),
       setTopShelfVisibleMain: (topShelfVisibleMain) => set({ topShelfVisibleMain }),
       setTopShelfVisibleSpatial: (topShelfVisibleSpatial) => set({ topShelfVisibleSpatial }),
       setSidebarView: (sidebarView) => set({ sidebarView }),
@@ -756,11 +802,13 @@ export const useMemoryStore = create<MemoryState>()(
           topShelfVisibleMain: true,
           topShelfVisibleSpatial: false,
           vaultLinkNonce: state.vaultLinkNonce + 1,
+          aiQueue: [],
+          aiProcessing: null,
         })),
     }),
     {
       name: 'temporal-self-storage',
-      version: 10,
+      version: 13,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         mapView: state.mapView,
@@ -782,6 +830,11 @@ export const useMemoryStore = create<MemoryState>()(
         vaultLastSyncAt: state.vaultLastSyncAt,
         topShelfVisibleMain: state.topShelfVisibleMain,
         topShelfVisibleSpatial: state.topShelfVisibleSpatial,
+        terrainContoursEnabled: state.terrainContoursEnabled,
+        boundariesEnabled: state.boundariesEnabled,
+        aiProvider: state.aiProvider,
+        aiApiKey: state.aiApiKey,
+        aiAutoAnalyze: state.aiAutoAnalyze,
       }),
       migrate: (persisted: unknown, version: number) => {
         const withVault = (x: Record<string, unknown>): Record<string, unknown> => {
@@ -868,6 +921,33 @@ export const useMemoryStore = create<MemoryState>()(
             ...p,
             mapStyle: p.mapStyle === 'watercolor' ? 'watercolor' : 'default',
           });
+        }
+        if (version < 11) {
+          return withVault({
+            ...p,
+            aiProvider:
+              p.aiProvider === 'gemini' || p.aiProvider === 'openai' || p.aiProvider === 'claude'
+                ? p.aiProvider
+                : null,
+            aiApiKey: typeof p.aiApiKey === 'string' ? p.aiApiKey : '',
+            aiAutoAnalyze: typeof p.aiAutoAnalyze === 'boolean' ? p.aiAutoAnalyze : false,
+          });
+        }
+        if (version < 12) {
+          const copy = {
+            ...p,
+            terrainContoursEnabled: typeof p.terrainContoursEnabled === 'boolean' ? p.terrainContoursEnabled : false,
+            boundariesEnabled: typeof p.boundariesEnabled === 'boolean' ? p.boundariesEnabled : false,
+          };
+          delete (copy as Record<string, unknown>).poiOverlayEnabled;
+          delete (copy as Record<string, unknown>).naturalOverlayEnabled;
+          return withVault(copy);
+        }
+        if (version < 13) {
+          const copy = { ...p };
+          delete copy.poiOverlayEnabled;
+          delete copy.naturalOverlayEnabled;
+          return withVault(copy);
         }
         return withVault(p);
       },

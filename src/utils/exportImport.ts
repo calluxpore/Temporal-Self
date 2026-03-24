@@ -21,6 +21,12 @@ export interface ExportAppState {
   /** @deprecated Import only; migrated into `studyCheckpointCompletedByParticipant`. */
   studyCheckpointCompletedAt?: Partial<Record<StudyCheckpointTag, string>>;
   studyEvents?: StudyEvent[];
+  aiProvider?: 'gemini' | 'openai' | 'claude' | null;
+  aiAutoAnalyze?: boolean;
+  // Never export secrets/session internals.
+  aiApiKey?: never;
+  aiQueue?: never;
+  aiProcessing?: never;
 }
 
 export interface ExportData {
@@ -37,12 +43,21 @@ export function buildExportData(
   groups: Group[],
   appState?: ExportAppState
 ): ExportData {
+  const safeAppState = appState
+    ? (() => {
+        const sanitized = { ...(appState as Record<string, unknown>) };
+        delete sanitized.aiApiKey;
+        delete sanitized.aiQueue;
+        delete sanitized.aiProcessing;
+        return sanitized as ExportAppState;
+      })()
+    : undefined;
   return {
     version: EXPORT_JSON_VERSION,
     exportedAt: new Date().toISOString(),
     memories,
     groups,
-    appState,
+    appState: safeAppState,
   };
 }
 
@@ -229,6 +244,13 @@ function normalizeAppState(raw: unknown): ExportAppState {
         : undefined,
     ...normalizeStudyCheckpointMaps(o),
     studyEvents: Array.isArray(o.studyEvents) ? (o.studyEvents as StudyEvent[]) : undefined,
+    aiProvider:
+      o.aiProvider === 'gemini' || o.aiProvider === 'openai' || o.aiProvider === 'claude'
+        ? o.aiProvider
+        : o.aiProvider === null
+          ? null
+          : undefined,
+    aiAutoAnalyze: typeof o.aiAutoAnalyze === 'boolean' ? o.aiAutoAnalyze : undefined,
   };
 }
 

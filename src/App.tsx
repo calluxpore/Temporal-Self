@@ -21,6 +21,7 @@ import { UngeotaggedTray, type UngeotaggedPhotoItem } from './components/Ungeota
 import { normalizePhonePhotoToDataUrl } from './utils/imageUtils';
 import { getFirstReviewDate, toISODateString } from './utils/spacedRepetition';
 import { useVaultSync } from './hooks/useVaultSync';
+import { useAiQueue } from './hooks/useAiQueue';
 const SPLASH_SEEN_STORAGE_KEY = 'temporal-self-splash-seen';
 const ONBOARDING_SEEN_STORAGE_KEY = 'temporal-self-onboarding-seen';
 
@@ -96,6 +97,10 @@ function AppContent() {
   const [ungeotaggedPhotos, setUngeotaggedPhotos] = useState<UngeotaggedPhotoItem[]>([]);
   const [trayOpen, setTrayOpen] = useState(false);
   const [placeModePhotoId, setPlaceModePhotoId] = useState<string | null>(null);
+  const aiProvider = useMemoryStore((s) => s.aiProvider);
+  const aiApiKey = useMemoryStore((s) => s.aiApiKey);
+  const aiAutoAnalyze = useMemoryStore((s) => s.aiAutoAnalyze);
+  const enqueueAiAnalysis = useMemoryStore((s) => s.enqueueAiAnalysis);
 
   const onRequestNewMemory = useCallback(() => {
     if (map) {
@@ -107,6 +112,7 @@ function AppContent() {
 
   useKeyboardShortcuts(onRequestNewMemory);
   useVaultSync();
+  useAiQueue();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -142,9 +148,12 @@ function AppContent() {
       };
       addMemory(memory);
       logStudyMemoryCreated(memory.id);
+      if (aiProvider && aiApiKey && aiAutoAnalyze) {
+        enqueueAiAnalysis(memory.id);
+      }
       return memory;
     },
-    [addMemory, logStudyMemoryCreated]
+    [addMemory, logStudyMemoryCreated, aiProvider, aiApiKey, aiAutoAnalyze, enqueueAiAnalysis]
   );
 
   const processPhoto = useCallback(async (file: File): Promise<ProcessResult> => {

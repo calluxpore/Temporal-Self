@@ -3,6 +3,7 @@ import { useMemoryStore } from '../store/memoryStore';
 import { VAULT_APP_DIR } from '../utils/vaultPaths';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useVaultFolderActions } from '../hooks/useVaultFolderActions';
+import { testAiConnection } from '../utils/analyzePhoto';
 
 export function SettingsDrawer() {
   const open = useMemoryStore((s) => s.settingsDrawerOpen);
@@ -12,8 +13,17 @@ export function SettingsDrawer() {
   const vaultLastSyncError = useMemoryStore((s) => s.vaultLastSyncError);
   const memories = useMemoryStore((s) => s.memories);
   const groups = useMemoryStore((s) => s.groups);
+  const aiProvider = useMemoryStore((s) => s.aiProvider);
+  const aiApiKey = useMemoryStore((s) => s.aiApiKey);
+  const aiAutoAnalyze = useMemoryStore((s) => s.aiAutoAnalyze);
+  const setAiProvider = useMemoryStore((s) => s.setAiProvider);
+  const setAiApiKey = useMemoryStore((s) => s.setAiApiKey);
+  const setAiAutoAnalyze = useMemoryStore((s) => s.setAiAutoAnalyze);
 
   const [active, setActive] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [testError, setTestError] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef, open);
 
@@ -55,6 +65,25 @@ export function SettingsDrawer() {
 
   const displayError = localError || vaultLastSyncError;
   const canOpenVaultFolder = hasVaultLocation;
+  const aiEnabled = aiProvider != null;
+  const keyPlaceholder =
+    aiProvider === 'gemini'
+      ? 'Paste Gemini API key'
+      : aiProvider === 'claude'
+        ? 'Paste Anthropic API key (console.anthropic.com)'
+        : 'Paste OpenAI API key';
+  const helperHref =
+    aiProvider === 'gemini'
+      ? 'https://aistudio.google.com/'
+      : aiProvider === 'claude'
+        ? 'https://console.anthropic.com/'
+      : 'https://platform.openai.com/';
+  const helperText =
+    aiProvider === 'gemini'
+      ? 'Get a free key at aistudio.google.com'
+      : aiProvider === 'claude'
+        ? 'Get a key at console.anthropic.com'
+      : 'Get a key at platform.openai.com';
 
   const handleOpenVaultFolder = async () => {
     if (!canOpenVaultFolder) return;
@@ -71,6 +100,24 @@ export function SettingsDrawer() {
     // Browsers cannot reveal/open real filesystem paths directly.
     // Best fallback: reopen directory picker for quick access.
     await chooseFolder();
+  };
+
+  const handleTestConnection = async () => {
+    if (!aiProvider || !aiApiKey.trim()) return;
+    setTestStatus('loading');
+    setTestError('');
+    const result = await testAiConnection(aiProvider, aiApiKey.trim());
+    if (result.ok) {
+      setTestStatus('ok');
+      window.setTimeout(() => setTestStatus('idle'), 3000);
+      return;
+    }
+    setTestStatus('error');
+    setTestError(result.error ?? 'Invalid key');
+    window.setTimeout(() => {
+      setTestStatus('idle');
+      setTestError('');
+    }, 3000);
   };
 
   if (!open) return null;
@@ -228,6 +275,97 @@ export function SettingsDrawer() {
               <p className="mt-3 font-mono text-xs text-danger" role="alert">
                 {displayError}
               </p>
+            )}
+          </section>
+
+          <section className="mt-8 border-t border-border pt-6">
+            <h3 className="font-mono text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+              AI features
+            </h3>
+            <p className="mt-2 font-mono text-[12px] leading-relaxed text-text-muted">
+              Auto-generate titles and descriptions from photos. Your API key is stored only on this device.
+            </p>
+
+            <div className="mt-4">
+              <label className="font-mono mb-1 block text-xs text-text-secondary">Provider</label>
+              <select
+                value={aiProvider ?? 'off'}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setAiProvider(v === 'gemini' || v === 'openai' || v === 'claude' ? v : null);
+                }}
+                className="font-mono w-full rounded-lg border border-border bg-surface-elevated/70 px-3 py-2 text-sm text-text-primary outline-none focus:border-accent/60"
+              >
+                <option value="off">Off</option>
+                <option value="gemini">Google Gemini (free)</option>
+                <option value="openai">OpenAI</option>
+                <option value="claude">Anthropic Claude</option>
+              </select>
+            </div>
+
+            {aiEnabled && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="font-mono mb-1 block text-xs text-text-secondary">API key</label>
+                  <div className="flex gap-2">
+                    <div className="relative min-w-0 flex-1">
+                      <input
+                        type={showApiKey ? 'text' : 'password'}
+                        value={aiApiKey}
+                        onChange={(e) => setAiApiKey(e.target.value)}
+                        placeholder={keyPlaceholder}
+                        className="font-mono w-full rounded-lg border border-border bg-surface-elevated/70 px-3 py-2 pr-16 text-sm text-text-primary placeholder-text-muted outline-none focus:border-accent/60"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey((s) => !s)}
+                        className="font-mono absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-text-secondary hover:text-text-primary"
+                      >
+                        {showApiKey ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleTestConnection()}
+                      disabled={!aiApiKey.trim() || testStatus === 'loading'}
+                      className="font-mono min-h-[40px] rounded-lg border border-border bg-surface-elevated px-3 text-xs text-text-primary transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {testStatus === 'loading' ? 'Testing…' : 'Test'}
+                    </button>
+                  </div>
+                  <a
+                    href={helperHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-block font-mono text-[11px] text-accent hover:underline"
+                  >
+                    {helperText}
+                  </a>
+                  {testStatus === 'ok' && (
+                    <p className="mt-1 font-mono text-[11px] text-green-400">✓ Connected</p>
+                  )}
+                  {testStatus === 'error' && (
+                    <p className="mt-1 font-mono text-[11px] text-red-400">✗ {testError || 'Connection failed'}</p>
+                  )}
+                </div>
+
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={aiAutoAnalyze}
+                    onChange={(e) => setAiAutoAnalyze(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-border bg-surface-elevated"
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-mono text-xs text-text-primary">
+                      Auto-analyze imported photos
+                    </span>
+                    <span className="block font-mono text-[11px] text-text-muted">
+                      When you drop photos on the map, analyze them automatically
+                    </span>
+                  </span>
+                </label>
+              </div>
             )}
           </section>
 

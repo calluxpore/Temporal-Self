@@ -124,12 +124,6 @@ export function SpatialWalkOverlay({ memory }: SpatialWalkOverlayProps) {
     return Math.max(0, recallSessionInitialCount - recallSessionQueue.length + 1);
   }, [recallSessionInitialCount, recallSessionQueue.length]);
 
-  const placeDescriptor = memory.placeDescriptor?.trim();
-  const placeName = locationName?.split(',')[0]?.trim() || null;
-  const fallbackPlaceCue = placeName || formatCoords(memory.lat, memory.lng);
-  const placeCue = placeDescriptor || fallbackPlaceCue;
-  const moodLabel = memory?.mood ? moodOption(memory.mood)?.label : null;
-
   if (!memory) {
     if (!recallSessionInitialCount) return null;
     return (
@@ -148,6 +142,12 @@ export function SpatialWalkOverlay({ memory }: SpatialWalkOverlayProps) {
       </div>
     );
   }
+
+  const placeDescriptor = memory.placeDescriptor?.trim();
+  const placeName = locationName?.split(',')[0]?.trim() || null;
+  const fallbackPlaceCue = placeName || formatCoords(memory.lat, memory.lng);
+  const placeCue = placeDescriptor || fallbackPlaceCue;
+  const moodLabel = memory.mood ? moodOption(memory.mood)?.label : null;
 
   return (
     <>

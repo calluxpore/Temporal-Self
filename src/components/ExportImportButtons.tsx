@@ -115,6 +115,8 @@ export function ExportImportButtons({
         Partial<Record<'baseline' | '2d' | '14d' | '40d', string>>
       >;
       studyEvents?: unknown[];
+      aiProvider?: 'gemini' | 'openai' | 'claude' | null;
+      aiAutoAnalyze?: boolean;
     };
   } | null>(null);
   const [screenshotBusy, setScreenshotBusy] = useState(false);
@@ -140,6 +142,10 @@ export function ExportImportButtons({
   const setDefaultGroupId = useMemoryStore((s) => s.setDefaultGroupId);
   const setDateFilter = useMemoryStore((s) => s.setDateFilter);
   const setSidebarView = useMemoryStore((s) => s.setSidebarView);
+  const aiProvider = useMemoryStore((s) => s.aiProvider);
+  const aiAutoAnalyze = useMemoryStore((s) => s.aiAutoAnalyze);
+  const setAiProvider = useMemoryStore((s) => s.setAiProvider);
+  const setAiAutoAnalyze = useMemoryStore((s) => s.setAiAutoAnalyze);
 
   const studyParticipantId = useMemoryStore((s) => s.studyParticipantId);
   const studyCheckpointTag = useMemoryStore((s) => s.studyCheckpointTag);
@@ -186,6 +192,8 @@ export function ExportImportButtons({
       studyCheckpointTag,
       studyCheckpointCompletedByParticipant,
       studyEvents,
+      aiProvider,
+      aiAutoAnalyze,
     });
     setExportOpen(false);
   }, [
@@ -202,6 +210,8 @@ export function ExportImportButtons({
     studyCheckpointTag,
     studyCheckpointCompletedByParticipant,
     studyEvents,
+    aiProvider,
+    aiAutoAnalyze,
   ]);
 
   const handleExportCsv = useCallback(() => {
@@ -310,6 +320,12 @@ export function ExportImportButtons({
       if ('studyEvents' in pendingImport.appState && pendingImport.appState.studyEvents !== undefined) {
         useMemoryStore.setState({ studyEvents: (pendingImport.appState.studyEvents ?? []) as StudyEvent[] });
       }
+      if ('aiProvider' in pendingImport.appState && pendingImport.appState.aiProvider !== undefined) {
+        setAiProvider(pendingImport.appState.aiProvider ?? null);
+      }
+      if ('aiAutoAnalyze' in pendingImport.appState && pendingImport.appState.aiAutoAnalyze !== undefined) {
+        setAiAutoAnalyze(!!pendingImport.appState.aiAutoAnalyze);
+      }
     }
     setPendingImport(null);
   }, [
@@ -323,6 +339,8 @@ export function ExportImportButtons({
     setDefaultGroupId,
     setStudyParticipantId,
     setStudyCheckpointTag,
+    setAiProvider,
+    setAiAutoAnalyze,
     setSidebarWidth,
     setSkipDeleteConfirmation,
     setDateFilter,
