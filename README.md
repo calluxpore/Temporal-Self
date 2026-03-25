@@ -58,85 +58,120 @@ The Vite **`base`** and PWA **`start_url` / `scope`** are set to **`/Temporal-Se
 3. Run `npm run lint` and `npm run build` locally.
 4. Open a pull request with a short description of behavior changes.
 
-There is **no automated test script** in `package.json` today; rely on lint, typecheck, and manual exercise of map, sidebar, **flashcard and spatial walk recall**, and export/import flows.
+There is **no automated test script** in `package.json` today; rely on lint, typecheck, and manual exercise of map, sidebar, recall modes, vault sync, export/import, and photo import.
 
 ---
 
-## Core features
+## What’s in the app
 
-- **Map-first journaling**: click map to add memories with title, date, location coordinates, optional **sense of place** descriptor, notes, photos, tags, links, icon/emoji label, optional **mood** (five emoji buttons), and optional **voice note**. The editor now has an inline Mood + Voice toolbar: record button plus compact player in the same row, with the player always visible (greyed when no audio, active when audio exists). Vault sync writes voice files to `Temporal-Self/attachments/<memory-id>/voice.*` and stores `audio:` in note YAML.
-- **Calendar-first history entry**: click any date in the compact **3-month Calendar view** (previous/current/next stacked), then add memories to that selected date.
-- **Date visibility cues**: Calendar dates with memories show dot/count indicators.
-- **Markdown notes**: memory notes support Markdown (GFM-style) in the editor.
-- **Organization**: groups, collapse/hide groups, drag reorder, default group, starred favorites, and bulk actions. Group picker has fixed width in the editor for stable layout, and group names are capped at 20 characters.
-- **Map layers and filters**: **location search** (top bar), date filter, favorites filter, timeline path, classic intensity heatmap, **mood heatmap** (color-coded by mood), and marker visibility toggle.
-- **Map style toggle**: switch map tiles between the default (light/dark) style and a Voyager raster style (Carto; `subdomains="abcd"`) using the top-bar “Map style” button after location search.
-- **Top-bar toggle clarity**: active map/search toggles now share a consistent highlighted state (accent border + glow + icon tint) so ON/OFF status is easy to read in both dark and light themes.
-- **Drag memories on the map**: hover a memory to open its photo card, grab the top-right corner to move it; connected timeline polylines update live (Spline or Straight/orthogonal rounded corners), with a focus crosshair shown at the current drag target. Undo is captured once per drag.
-- **Keyboard shortcuts** (when not typing in inputs): see list below for map controls, plus **N** new memory, **Ctrl+S** archive search drawer, **Escape** close selection/modals, **Ctrl+Z** / **Ctrl+Shift+Z** undo/redo.
-- **Recall practice (SM-2)** — two modes, same scheduling and stats:
-  - **Flashcards** — right-side recall panel; map flies to the memory; **I remember** / **Show me** (opens memory viewer) / skip. Started from the brain icon in the top bar or **`Alt+R`**.
-  - **Spatial walk** — the **map is the cue** (no title until you reveal). The view **flies** to each memory (zoom 15); a **bottom-center** card shows place context (prefers the memory’s *sense of place* descriptor, otherwise place name/coords), **I remember** / **Show me**, then **Got it** / **Next** after reveal; SM-2 outcomes match flashcards. Order follows **group label traversal** (ungrouped `A, B, C…`, then group 1 `A1, B1…`, etc.). While active, **sidebar, location search, settings/search drawers, and heatmaps** are hidden for focus; **`Alt+B`** can show the **top control shelf** (visibility is remembered separately for main map vs spatial walk). **Escape** ends the walk. Started from the route icon next to flashcards or **`Alt+W`**. Memories without valid coordinates are skipped (console warning).
-- **Top shelf toggle**: **`Alt+B`** shows or hides the floating top icon row with a slide-from-top animation. Preference is stored for **normal map** vs **spatial walk** independently.
-- **Heatmaps during map pan**: intensity and mood heat layers **fade out while you drag** the map and **resync once** when movement ends, so the canvas stays smooth without expensive per-frame redraws.
-- **Stats dashboards** (sidebar tabs):
-  - **Memory stats** — totals, places, starred, photos, by year/month, date-wise memories (plus Study panel)
-  - **Mood stats** — emotion coverage, valence, balance, diversity (entropy), per-mood distribution, monthly/yearly trends, weekday & group breakdowns, narrative insights
-  - **Recall stats** — score, due/scheduled, cycle performance
-- **Styled screenshot export**: rounded card frame, theme-aware border/text, timestamp, timeline+markers forced on, map controls hidden.
-- **PDF report generation**: branded cover with logo and timestamp, plus overview, date/group distribution, **mood & emotion** (coverage, distribution chart, valence scale, balance, entropy, dominant mood), study table (if used), and recall analytics.
-- **Memory viewer enhancements**: mood is shown directly in the viewer header, optional *sense of place* is shown under location in italic quotes, and voice notes can be played from an inline audio player on the memory card.
-- **First-visit splash screen**: branded splash shown once per browser profile, dismiss on click.
-- **Onboarding overlay**: multi-step tour (map, list/groups, calendar, memory stats, mood stats, recall stats) with skip/next.
-- **Top-bar controls with hover tooltips**: theme, **flashcards recall** and **spatial walk recall**, reset, search, map style, timeline, heatmaps, markers, favorites, export/import, etc.
-- **Research study support (Study panel)**: optional study logging in the Memory stats tab (participant ID + checkpoint tag + completion time) and an exportable event log for longitudinal analysis.
-- **Vault convenience in Settings**: when a vault is linked, Settings includes an **Open vault folder** action (Electron opens it in the OS file explorer).
-- **Vault markdown location format**: exported memory notes keep location inside YAML front matter as raw coordinates, e.g. `location: 42.98324945220888, -81.25033468246303` (legacy body `**Location:** ...` lines are cleaned during sync).
+### Map and geography
+
+- **Leaflet** map with persisted **center and zoom** (restored on load).
+- **Base map**: follows **light/dark theme** using **Carto** “light all” or “dark all” raster tiles (`subdomains abcd`), or switch to an alternate **“watercolor”** style (**Carto Voyager** raster) via the top bar or **`Alt+T`**.
+- **Click the map** to place a **pending pin** (pulse marker) and open the add-memory flow; a **“CLICK TO PIN MEMORY”** hint appears after the pointer rests on the map. First map click while **Settings** or **archive search** is open only closes that drawer.
+- **Location search** (geocoder) in the top strip: jump the map to a searched place.
+- **Marker clustering** for memory pins; labels follow **group order** (e.g. ungrouped A, B, C… and grouped A1, B1…).
+- **Timeline paths**: optional polylines connecting memories **per group** and a separate chain for **ungrouped** memories; line shape is **spline** or **orthogonal** (rounded corners), toggled in the top bar or with **`Alt+S`** / **`Alt+P`** for on/off.
+- **Heatmap** (intensity by location) and **mood heatmap** (color by mood); both **dim while the map is dragged** and refresh after movement ends.
+- **Radius circles** (about **2 km** per memory): optional overlay; circles whose ranges intersect (centers within about **twice** that radius) merge into **one outline** (buffer + polygon union). While **adding** a memory, the **pending coordinates** are included in that logic so merged shapes update live.
+- **Hover** a marker to open a **card** (photo, title, etc.); **drag** from the card’s handle to **move** the memory on the map (one **undo** per drag), with a **crosshair** at the drag target.
+- **Ctrl + drag** on the map draws a **marquee** to select memories whose pins fall inside (**Shift** adds to the current selection). **Delete** / **Backspace** deletes the selection (confirmation unless disabled in Settings). A small on-map hint shows when multiple memories are selected.
+- **Archive search** hits can be **highlighted** on markers; some results draw a **dashed rectangle** on the map for an area match.
+
+### Memories (create, edit, view)
+
+- **Add / edit** drawer: **title**, **date**, coordinates, optional **sense of place** text, **Markdown** notes (GFM-style) with **Preview / Edit** toggle (**`Ctrl+E`** / **`Cmd+E`**), **photos** (common formats plus **HEIC/HEIF** conversion where supported), optional **voice note** (record + **inline player** in the mood/voice toolbar row), optional **mood** (five values), **tags**, **links**, **star**, **hide from map**, **custom label** (text or **emoji picker**), and **group** (names up to **20** characters; picker width fixed for layout).
+- **Drop or import photos** (including bulk): reads **EXIF** GPS/date when present; photos without coordinates can land in an **ungeotagged tray** for later placement.
+- **Memory viewer** (read-only): shows mood, optional sense of place under the location, images, markdown notes, links, and **voice playback** where present.
+- **New memory at map center** via **`N`** when not typing in a field.
+
+### Sidebar and navigation
+
+- **Backtick (`)** toggles the **left drawer** (open/collapsed); width is persisted.
+- **Views**: **List** (memories and groups), **Calendar** (three stacked months with **dots** on days that have memories; pick a date to filter and target new entries), **Memory stats**, **Mood stats**, **Recall stats**.
+- **List**: groups with **collapse**, **hide on map**, **drag reorder**, **default group**, **multi-select** in the list, **bulk delete** and **bulk move to group**.
+- **On This Day** banner when past-year memories exist today (dismissible for the session).
+- **Vault row** in the sidebar links to **Settings** for folder setup.
+
+### Search
+
+- **Archive search** drawer (**`Ctrl+S`** or toolbar): full-text style search over vault-backed content; results tie to map highlights as above.
+
+### Recall (SM-2)
+
+- **Flashcards** (brain icon or **`Alt+R`**): right-hand **Recall** panel; map **flies** to the memory at zoom **17**; **I remember** / **Show me** (opens viewer) / **Skip**; number keys **1** / **2** / **3** map to those actions when the modal has focus.
+- **Spatial walk** (route icon or **`Alt+W`**): map-centered cues (title hidden until you tap **Show me**); map **flies** at zoom **15**; bottom card shows a **place cue** (sense of place if set, otherwise **reverse-geocoded** label or formatted coordinates), then **I remember** / **Show me**; after reveal, **Got it** / **Next** and a map popup with photo + title. Same SM-2 scheduling as flashcards. Order follows **sidebar label order** (ungrouped then grouped). Memories **without valid coordinates** are skipped (browser console warning if any). **`Alt+B`** toggles the **top control shelf** during the walk (preference saved separately from the main map). **Escape** ends recall / walk when the map stack has focus.
+- **Recall stats** tab summarizes practice performance; scheduling uses **SM-2** fields on each memory.
+
+### Top bar (floating)
+
+When the shelf is visible: **theme**, **map style**, **timeline** on/off, **timeline line style**, **markers**, **radius circles**, **heatmap**, **mood heatmap**, **favorites filter**, **archive search**, **recall** (flashcard + spatial), **export / import / screenshot / report** menu, **reset**, and **Settings** (also **`Shift+S`**). Tooltips show shortcut hints where applicable.
+
+### Settings
+
+- **Vault**: choose a folder (browser **File System Access** where available, or Electron path); **sync** markdown + attachments under a `Temporal-Self` app folder; **Save now**, status and last error; **Open vault folder** on desktop when linked.
+- **AI** (optional): **Gemini**, **OpenAI**, or **Claude** API key, connection test, and **auto-analyze** toggle for queued photo analysis.
+- **Skip delete confirmation** for bulk deletes.
+- **Keyboard shortcuts** reference table inside the drawer.
+
+### Data, export, and reports
+
+- **JSON** and **CSV** export/import (CSV is a reduced column set).
+- **Styled map screenshot** (**`Ctrl+I`**): framed capture with timestamp; timeline/markers forced on for the shot.
+- **PDF report** (**`Ctrl+R`**): cover, overview, distributions, mood analytics, optional study table, recall summaries.
+- **Research / Study** (optional): participant id, checkpoint tagging, completion times, and **append-only study events** exportable with JSON backup (see below).
+
+### First run and help
+
+- **Splash** screen on first visit (per browser profile), dismiss by click.
+- **Onboarding** steps: welcome, add memory, list/groups, calendar, memory stats, mood stats, recall stats, vault folder, top controls — **Skip** / **Next**.
+
+### Vault file layout (when synced)
+
+- Markdown notes with **YAML front matter**; **location** stored as coordinates in front matter (e.g. `location: lat, lng`); voice files under `Temporal-Self/attachments/<memory-id>/` with `audio:` in YAML.
 
 ---
 
 ## Keyboard shortcuts
 
-### Global controls
+### With `Alt` (and other globals)
 
-- `` ` `` — toggle left drawer open/collapse
-- `Alt + D` — toggle dark/light theme
-- `Alt + R` — start **flashcard** recall (SM-2)
-- `Alt + W` — start **spatial walk** recall (map-as-cue; same SM-2 pool)
-- `Alt + B` — toggle **top control shelf** visibility (main vs spatial walk state remembered)
+- `` ` `` — toggle left drawer
+- `Alt + D` — toggle theme
+- `Alt + R` — start flashcard recall
+- `Alt + W` — start spatial walk
+- `Alt + B` — toggle top control shelf (main vs spatial walk remembered separately)
 - `Alt + C` — open reset dialog
-- `Alt + S` — toggle timeline path style
-- `Ctrl + S` — open **archive search** drawer (full-text vault search; matching memories highlighted on the map)
-- `Alt + P` — toggle timeline path
+- `Alt + S` — toggle timeline **line style** (spline ↔ orthogonal)
+- `Alt + P` — toggle timeline **visibility**
 - `Alt + H` — toggle heatmap
-- `Alt + T` — toggle map style
+- `Alt + T` — toggle map style (default ↔ watercolor)
 - `Alt + G` — toggle mood heatmap
-- `Alt + J` — toggle terrain contours
-- `Alt + U` — toggle boundaries overlay
 - `Alt + M` — toggle markers
-- `Alt + O` — toggle radius circles (2 km around each memory)
+- `Alt + O` — toggle radius circles
 - `Alt + F` — toggle favorites-only filter
-- `Alt + L` — switch sidebar to list view
-- `Alt + K` — switch sidebar to calendar view
+- `Alt + L` — sidebar **list** view
+- `Alt + K` — sidebar **calendar** view
 - `Alt + E` — open export menu
 - `Alt + I` — open import file picker
-- `Alt + X` — import photos
-- `Ctrl + I` — save map screenshot
-- `Ctrl + R` — generate report
-- `Shift + S` — open settings
+- `Alt + X` — trigger photo import
+- `Ctrl + S` — open archive search drawer
+- `Ctrl + I` — map screenshot
+- `Ctrl + R` — generate PDF report
+- `Shift + S` — open Settings
 
-### Navigation/editing
+### Editing and navigation
 
-- `N` — create new memory at map center
-- `Escape` — close active modal/selection; ends **spatial walk** / recall session when the map has focus
-- `Ctrl + Z` / `Ctrl + Shift + Z` (`Ctrl + Y`) — undo/redo
-- In notes editor: `Ctrl + E` / `Cmd + E` — toggle Preview/Edit
+- `N` — new memory at map center (not when typing in an input)
+- `Escape` — closes editor/selection/add flow; ends recall/spatial walk when appropriate
+- `Ctrl + Z` / `Ctrl + Shift + Z` / `Ctrl + Y` — undo / redo
+- In the notes editor: `Ctrl + E` / `Cmd + E` — Preview ↔ Edit
 
-### Recall modal
+### Recall panel (flashcard mode)
 
-- `1` — I remember
-- `2` — Show me
-- `3` — Skip
+- `1` — I remember  
+- `2` — Show me  
+- `3` — Skip  
 
 ---
 
@@ -196,10 +231,14 @@ If you are running a longitudinal study (for example at 2 days, 2 weeks, and 40 
 - React 19 + TypeScript
 - Vite 7
 - Zustand (persist middleware)
-- Leaflet + React-Leaflet + marker clustering + heatmap
+- Leaflet + React-Leaflet + `react-leaflet-cluster` + `leaflet.heat`
 - Tailwind CSS 4
+- Turf.js (`@turf/buffer`, `@turf/distance`, `@turf/union`, helpers) — radius-circle buffers and merged outlines
 - `html-to-image` + canvas post-processing (styled screenshot export)
 - `jsPDF` (report generation)
+- `exifr` (photo EXIF)
+- `heic2any` (HEIC/HEIF conversion in the browser where used)
+- `emoji-picker-react` (custom memory labels)
 - `vite-plugin-pwa` (web mode)
 - Electron + electron-builder (desktop packaging)
 - `react-markdown` + `remark-gfm` / `remark-breaks` (notes)
@@ -208,15 +247,18 @@ If you are running a longitudinal study (for example at 2 days, 2 weeks, and 40 
 
 ## Project structure
 
-- `src/App.tsx` — app shell, overlays/modals, splash behavior, spatial-walk chrome hiding
-- `src/components/` — map, sidebar, calendar, stats, recall (`RecallModal`, `SpatialWalkOverlay`), controls, export/import
+- `src/App.tsx` — app shell, splash, onboarding, photo drop/import flow, `UngeotaggedTray`, drawers, recall wiring
+- `src/components/` — `MapView`, `Sidebar`, `CalendarView`, stats dashboards, `RecallModal`, `SpatialWalkOverlay`, `AddMemoryModal`, `MemoryViewer`, search/settings/export UI, `OnThisDayBanner`, etc.
+- `src/hooks/` — `useKeyboardShortcuts`, `useVaultSync`, `useAiQueue`, and other hooks
 - `src/store/memoryStore.ts` — global state, persistence, recall/session logic, preferences
-- `src/types/memory.ts` — core `Memory` / `Group` shapes (good starting point for export schema or migrations)
+- `src/types/memory.ts` — core `Memory` / `Group` shapes
 - `src/utils/spacedRepetition.ts` — SM-2 recall scheduling
+- `src/utils/radiusCircleMerge.ts` — intersecting 2 km circles → merged polygons (+ pending-pin preview)
 - `src/utils/exportImport.ts` — JSON/CSV backup and restore
 - `src/utils/generateReport.ts` — PDF report generator
+- `src/utils/analyzePhoto.ts` — optional AI photo analysis (providers configured in Settings)
 - `src/utils/memoryMoods.ts` — mood taxonomy, labels, valence mapping, parser helpers
-- `src/utils/moodReportStats.ts` — mood coverage / valence / entropy snapshot for PDF (and aligns with Mood stats tab)
+- `src/utils/moodReportStats.ts` — mood stats for PDF (aligned with Mood stats tab)
 - `src/utils/voiceNote.ts` — MediaRecorder helpers (capability checks, MIME choice, blob→data URL)
 - `src/utils/idbStorage.ts` — IndexedDB adapter and migration utilities
 - `electron/main.cjs` — desktop window/app lifecycle

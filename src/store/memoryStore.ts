@@ -53,10 +53,6 @@ interface MemoryState {
   markersVisible: boolean;
   /** Show a fixed-radius circle around each visible memory marker. */
   radiusCirclesEnabled: boolean;
-  /** Overlay terrain/contour context on top of base tiles. */
-  terrainContoursEnabled: boolean;
-  /** Overlay country/region boundary lines. */
-  boundariesEnabled: boolean;
   /** Top controls shelf visibility in main screens. */
   topShelfVisibleMain: boolean;
   /** Top controls shelf visibility during spatial walk. */
@@ -150,8 +146,6 @@ interface MemoryState {
   setMoodHeatmapEnabled: (value: boolean) => void;
   setMarkersVisible: (value: boolean) => void;
   setRadiusCirclesEnabled: (value: boolean) => void;
-  setTerrainContoursEnabled: (value: boolean) => void;
-  setBoundariesEnabled: (value: boolean) => void;
   setTopShelfVisibleMain: (value: boolean) => void;
   setTopShelfVisibleSpatial: (value: boolean) => void;
   setSidebarView: (view: MemoryState['sidebarView']) => void;
@@ -254,8 +248,6 @@ export const useMemoryStore = create<MemoryState>()(
       moodHeatmapEnabled: false,
       markersVisible: true,
       radiusCirclesEnabled: false,
-      terrainContoursEnabled: false,
-      boundariesEnabled: false,
       topShelfVisibleMain: true,
       topShelfVisibleSpatial: false,
       sidebarView: 'list',
@@ -552,8 +544,6 @@ export const useMemoryStore = create<MemoryState>()(
       setMoodHeatmapEnabled: (moodHeatmapEnabled) => set({ moodHeatmapEnabled }),
       setMarkersVisible: (markersVisible) => set({ markersVisible }),
       setRadiusCirclesEnabled: (radiusCirclesEnabled) => set({ radiusCirclesEnabled }),
-      setTerrainContoursEnabled: (terrainContoursEnabled) => set({ terrainContoursEnabled }),
-      setBoundariesEnabled: (boundariesEnabled) => set({ boundariesEnabled }),
       setTopShelfVisibleMain: (topShelfVisibleMain) => set({ topShelfVisibleMain }),
       setTopShelfVisibleSpatial: (topShelfVisibleSpatial) => set({ topShelfVisibleSpatial }),
       setSidebarView: (sidebarView) => set({ sidebarView }),
@@ -814,7 +804,7 @@ export const useMemoryStore = create<MemoryState>()(
     }),
     {
       name: 'temporal-self-storage',
-      version: 14,
+      version: 15,
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         mapView: state.mapView,
@@ -837,8 +827,6 @@ export const useMemoryStore = create<MemoryState>()(
         topShelfVisibleMain: state.topShelfVisibleMain,
         topShelfVisibleSpatial: state.topShelfVisibleSpatial,
         radiusCirclesEnabled: state.radiusCirclesEnabled,
-        terrainContoursEnabled: state.terrainContoursEnabled,
-        boundariesEnabled: state.boundariesEnabled,
         aiProvider: state.aiProvider,
         aiApiKey: state.aiApiKey,
         aiAutoAnalyze: state.aiAutoAnalyze,
@@ -961,6 +949,12 @@ export const useMemoryStore = create<MemoryState>()(
             ...p,
             radiusCirclesEnabled: typeof p.radiusCirclesEnabled === 'boolean' ? p.radiusCirclesEnabled : false,
           });
+        }
+        if (version < 15) {
+          const copy = { ...p };
+          delete copy.terrainContoursEnabled;
+          delete copy.boundariesEnabled;
+          return withVault(copy);
         }
         return withVault(p);
       },

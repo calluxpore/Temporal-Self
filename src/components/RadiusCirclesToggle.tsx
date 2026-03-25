@@ -38,10 +38,12 @@ export function RadiusCirclesToggle({ variant = 'fixed' }: { variant?: TopContro
           strokeLinecap="round"
           strokeLinejoin="round"
           className={radiusCirclesEnabled ? 'text-accent' : 'text-text-secondary'}
+          aria-hidden
         >
-          <circle cx="12" cy="12" r="9" opacity="0.45" />
-          <circle cx="12" cy="12" r="5" opacity="0.7" />
-          <circle cx="12" cy="12" r="1.5" />
+          {/* Ring + center + radius arm — reads as distance from a point, not density */}
+          <circle cx="12" cy="12" r="8" opacity="0.9" />
+          <line x1="12" y1="12" x2="19" y2="12" />
+          <circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none" />
         </svg>
       </button>
       <span

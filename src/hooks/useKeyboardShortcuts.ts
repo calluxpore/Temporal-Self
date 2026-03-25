@@ -55,10 +55,6 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
   const setRadiusCirclesEnabled = useMemoryStore((s) => s.setRadiusCirclesEnabled);
   const filterStarred = useMemoryStore((s) => s.filterStarred);
   const setFilterStarred = useMemoryStore((s) => s.setFilterStarred);
-  const terrainContoursEnabled = useMemoryStore((s) => s.terrainContoursEnabled);
-  const setTerrainContoursEnabled = useMemoryStore((s) => s.setTerrainContoursEnabled);
-  const boundariesEnabled = useMemoryStore((s) => s.boundariesEnabled);
-  const setBoundariesEnabled = useMemoryStore((s) => s.setBoundariesEnabled);
   const setSidebarView = useMemoryStore((s) => s.setSidebarView);
   const setMemorySearchDrawerOpen = useMemoryStore((s) => s.setMemorySearchDrawerOpen);
   const setSettingsDrawerOpen = useMemoryStore((s) => s.setSettingsDrawerOpen);
@@ -258,16 +254,6 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
           setFilterStarred(!filterStarred);
           return;
         }
-        if (k === 'j') {
-          e.preventDefault();
-          setTerrainContoursEnabled(!terrainContoursEnabled);
-          return;
-        }
-        if (k === 'u') {
-          e.preventDefault();
-          setBoundariesEnabled(!boundariesEnabled);
-          return;
-        }
         if (k === 'l') {
           e.preventDefault();
           setSidebarView('list');
@@ -353,10 +339,6 @@ export function useKeyboardShortcuts(onRequestNewMemory?: () => void) {
       setRadiusCirclesEnabled,
       filterStarred,
       setFilterStarred,
-      terrainContoursEnabled,
-      setTerrainContoursEnabled,
-      boundariesEnabled,
-      setBoundariesEnabled,
       setSidebarView,
       setMemorySearchDrawerOpen,
       setSettingsDrawerOpen,

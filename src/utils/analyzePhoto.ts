@@ -25,6 +25,114 @@ Return ONLY a valid JSON object with exactly these three fields:
 
 No markdown. No backticks. No explanation. Only the JSON object.`;
 
+/** Google AI Studio model for generateContent. Older IDs (e.g. gemini-2.0-flash) often have no free-tier quota and return 429. */
+const GEMINI_MODEL = 'gemini-2.5-flash';
+
+function geminiGenerateContentUrl(): string {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+}
+
+/** JSON Schema for structured output — avoids truncated free-form JSON with thinking models. */
+const GEMINI_PHOTO_ANALYSIS_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    title: {
+      type: 'string',
+      description:
+        'Short, specific memory title (max ~60 chars). Vivid, not generic (e.g. "sunset over the ghats" not "sunset").',
+    },
+    emoji: {
+      type: 'string',
+      description:
+        'Exactly one emoji for the scene (e.g. mountains 🏔️, beach 🌊, food 🍜, city 🏙️).',
+    },
+    placeDescriptor: {
+      type: 'string',
+      description:
+        'Lowercase sensory phrase (max ~120 chars): feel of the place (e.g. "warm stone steps in afternoon shadow").',
+    },
+  },
+  required: ['title', 'emoji', 'placeDescriptor'],
+} as const;
+
+function geminiCandidateText(data: {
+  candidates?: Array<{
+    finishReason?: string;
+    content?: { parts?: Array<{ text?: string }> };
+  }>;
+}): { text: string; finishReason?: string } {
+  const candidate = data.candidates?.[0];
+  const parts = candidate?.content?.parts ?? [];
+  const text = parts.map((p) => p.text ?? '').join('');
+  return { text, finishReason: candidate?.finishReason };
+}
+
+function parseDataUrlBase64(dataUrl: string): { mimeType: string; base64: string } | null {
+  const m = dataUrl.match(/^data:([^,]+),([\s\S]+)$/);
+  if (!m) return null;
+  const meta = m[1];
+  const base64 = m[2].replace(/\s/g, '');
+  if (!base64) return null;
+  const mimeType = meta.split(';')[0].trim().toLowerCase() || 'application/octet-stream';
+  return { mimeType, base64 };
+}
+
+/** JSON schema for voice memo → single transcript string. */
+const GEMINI_TRANSCRIPT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    transcript: {
+      type: 'string',
+      description:
+        'Full transcript of the voice memo, lightly edited for a journal: punctuation, paragraphs, obvious mishearings fixed. No title or preamble.',
+    },
+  },
+  required: ['transcript'],
+} as const;
+
+const VOICE_TRANSCRIBE_PROMPT = `Transcribe this voice memo. Lightly edit for a personal journal: add punctuation and paragraph breaks, fix obvious speech-recognition mistakes. Do not invent words or add commentary.`;
+
+function whisperFilename(mimeType: string): string {
+  const base = mimeType.split(';')[0].trim().toLowerCase();
+  if (base.includes('webm')) return 'recording.webm';
+  if (base.includes('mp4') || base.includes('m4a')) return 'recording.m4a';
+  if (base.includes('wav')) return 'recording.wav';
+  if (base.includes('mpeg') || base.includes('mp3')) return 'recording.mp3';
+  if (base.includes('flac')) return 'recording.flac';
+  if (base.includes('ogg')) return 'recording.ogg';
+  return 'recording.webm';
+}
+
+async function openAiCleanTranscript(raw: string, apiKey: string): Promise<string> {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      max_tokens: 8192,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'user',
+          content: `Light-edit this voice memo transcript for a personal journal. Fix punctuation and paragraph breaks; fix obvious ASR errors only. Do not add facts or a preamble. Output only the cleaned text:\n\n${trimmed}`,
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(simplifyAiError(err?.error?.message || `OpenAI error ${res.status}`, res.status));
+  }
+  const data = await res.json();
+  const out = data.choices?.[0]?.message?.content?.trim() ?? '';
+  return out || trimmed;
+}
+
 function simplifyAiError(message: string, status: number): string {
   const lower = message.toLowerCase();
   if (status === 401 || lower.includes('invalid api key') || lower.includes('api key not valid')) {
@@ -33,7 +141,11 @@ function simplifyAiError(message: string, status: number): string {
   if (status === 429 || lower.includes('quota exceeded') || lower.includes('rate limit')) {
     const retryMatch = message.match(/retry in\s+([\d.]+s?)/i);
     const retry = retryMatch?.[1];
-    return retry ? `Quota exceeded. Retry in ${retry}` : 'Quota exceeded. Please retry shortly';
+    if (retry) return `Rate limited. Retry in ${retry}`;
+    if (/limit:\s*0\b/.test(lower)) {
+      return 'No quota for this model on your API key or plan. See ai.google.dev rate limits.';
+    }
+    return 'Rate limited or quota exceeded. See ai.google.dev/gemini-api/docs/rate-limits';
   }
   if (status >= 500) return 'AI provider is temporarily unavailable';
   return message || `Error ${status}`;
@@ -52,17 +164,24 @@ export async function analyzePhoto(
   let rawText = '';
 
   if (provider === 'gemini') {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
+    const res = await fetch(geminiGenerateContentUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [
           {
-            parts: [{ text: SYSTEM_PROMPT }, { inline_data: { mime_type: mimeType, data: base64 } }],
+            parts: [
+              { text: SYSTEM_PROMPT },
+              { inlineData: { mimeType, data: base64 } },
+            ],
           },
         ],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 200 },
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 1024,
+          responseMimeType: 'application/json',
+          responseJsonSchema: GEMINI_PHOTO_ANALYSIS_JSON_SCHEMA,
+        },
       }),
     });
     if (!res.ok) {
@@ -70,7 +189,11 @@ export async function analyzePhoto(
       throw new Error(simplifyAiError(err?.error?.message || `Gemini error ${res.status}`, res.status));
     }
     const data = await res.json();
-    rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const { text, finishReason } = geminiCandidateText(data);
+    rawText = text;
+    if (!rawText.trim() && finishReason === 'MAX_TOKENS') {
+      throw new Error('AI response was cut off. Try again or increase output limit.');
+    }
   } else if (provider === 'openai') {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -158,16 +281,110 @@ export async function analyzePhoto(
   return parsed;
 }
 
+/**
+ * Transcribe and lightly clean a voice memo (data URL). Gemini: one multimodal call.
+ * OpenAI: Whisper then gpt-4o-mini cleanup. Claude: not supported (throws).
+ */
+export async function transcribeVoiceMemo(
+  audioDataUrl: string,
+  provider: 'gemini' | 'openai' | 'claude',
+  apiKey: string
+): Promise<string> {
+  const parsed = parseDataUrlBase64(audioDataUrl.trim());
+  if (!parsed) throw new Error('Invalid audio data URL');
+  if (!apiKey) throw new Error('No API key configured');
+
+  if (provider === 'claude') {
+    throw new Error(
+      'Voice transcription needs Google Gemini or OpenAI. Change provider in Settings, or remove the voice note to use Claude for photos only.'
+    );
+  }
+
+  if (provider === 'gemini') {
+    const res = await fetch(geminiGenerateContentUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: VOICE_TRANSCRIBE_PROMPT },
+              { inlineData: { mimeType: parsed.mimeType, data: parsed.base64 } },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 8192,
+          responseMimeType: 'application/json',
+          responseJsonSchema: GEMINI_TRANSCRIPT_JSON_SCHEMA,
+        },
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(simplifyAiError(err?.error?.message || `Gemini error ${res.status}`, res.status));
+    }
+    const data = await res.json();
+    const { text, finishReason } = geminiCandidateText(data);
+    if (!text.trim() && finishReason === 'MAX_TOKENS') {
+      throw new Error('Transcription was cut off. Try a shorter recording or try again.');
+    }
+    let parsedJson: { transcript?: string };
+    try {
+      parsedJson = JSON.parse(text.replace(/```json|```/g, '').trim());
+    } catch {
+      throw new Error(`AI returned invalid transcript JSON: ${text.slice(0, 120)}`);
+    }
+    const t = parsedJson.transcript?.trim() ?? '';
+    if (!t) throw new Error('Empty transcription from AI');
+    return t;
+  }
+
+  // OpenAI: Whisper + light cleanup
+  let binary: string;
+  try {
+    binary = atob(parsed.base64);
+  } catch {
+    throw new Error('Invalid audio data URL');
+  }
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: parsed.mimeType.split(';')[0].trim() || 'audio/webm' });
+  const formData = new FormData();
+  formData.append('file', blob, whisperFilename(parsed.mimeType));
+  formData.append('model', 'whisper-1');
+
+  const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  });
+  if (!whisperRes.ok) {
+    const err = await whisperRes.json().catch(() => ({}));
+    throw new Error(simplifyAiError(err?.error?.message || `Whisper error ${whisperRes.status}`, whisperRes.status));
+  }
+  const whisperBody = await whisperRes.text();
+  let raw = '';
+  try {
+    const whisperData = JSON.parse(whisperBody) as { text?: string };
+    raw = whisperData.text?.trim() ?? '';
+  } catch {
+    raw = whisperBody.trim();
+  }
+  if (!raw) throw new Error('Empty transcription from Whisper');
+  return openAiCleanTranscript(raw, apiKey);
+}
+
 export async function testAiConnection(
   provider: 'gemini' | 'openai' | 'claude',
   apiKey: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     if (provider === 'gemini') {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      const res = await fetch(url, {
+      const res = await fetch(geminiGenerateContentUrl(), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: 'Reply with the word OK only.' }] }],
           generationConfig: { maxOutputTokens: 5 },

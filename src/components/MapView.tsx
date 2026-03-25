@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Rectangle, Polyline, Circle, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Rectangle, Polyline, Circle, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -11,8 +11,6 @@ import { MemoryHoverCard } from './MemoryHoverCard';
 import { SetMapRef } from './SetMapRef';
 import { HeatmapLayer } from './HeatmapLayer';
 import { MoodHeatmapLayer } from './MoodHeatmapLayer';
-import { TerrainContoursLayer } from './TerrainContoursLayer';
-import { BoundariesLayer } from './BoundariesLayer';
 import type { Memory, Group } from '../types/memory';
 import type { SearchHighlight } from '../store/memoryStore';
 import { getMemoryLabel } from '../utils/memoryLabel';
@@ -21,16 +19,73 @@ import { filterMemoriesByDate } from '../utils/dateFilter';
 import { smoothCurveThroughPoints } from '../utils/timelineCurve';
 import { buildOrthogonalRoute } from '../utils/timelineOrthogonal';
 import { useChromeCenterLeft } from '../hooks/useChromeCenterLeft';
+import { buildRadiusCircleLayers } from '../utils/radiusCircleMerge';
 
-function ZoomControlPlacement() {
+/** Bottom-right: zoom added first (toward corner), locate second so it stacks above the +/- bar. */
+function LocateAndZoomControls() {
   const map = useMap();
+  const setMapView = useMemoryStore((s) => s.setMapView);
+
   useEffect(() => {
+    const locateSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M12 2.5v3.5M12 18v3.5M2.5 12h3.5M18 12h3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+
+    const LocateControl = L.Control.extend({
+      options: { position: 'bottomright' },
+      onAdd(mapInstance: L.Map) {
+        const wrapper = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-locate');
+        const btn = L.DomUtil.create('a', 'leaflet-control-locate-btn', wrapper);
+        btn.href = '#';
+        btn.setAttribute('role', 'button');
+        btn.setAttribute('aria-label', 'Center map on your location');
+        btn.title = 'My location';
+        btn.innerHTML = locateSvg;
+
+        L.DomEvent.disableClickPropagation(wrapper);
+
+        L.DomEvent.on(btn, 'click', (domEvent) => {
+          L.DomEvent.stop(domEvent);
+          if (!navigator.geolocation) {
+            btn.title = 'Geolocation not available';
+            window.setTimeout(() => {
+              btn.title = 'My location';
+            }, 2500);
+            return;
+          }
+          btn.classList.add('leaflet-control-locate-pending');
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              btn.classList.remove('leaflet-control-locate-pending');
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              const zoom = Math.max(mapInstance.getZoom(), 14);
+              mapInstance.setView([lat, lng], zoom, { animate: true });
+              setMapView({ lat, lng, zoom });
+            },
+            () => {
+              btn.classList.remove('leaflet-control-locate-pending');
+              btn.title = 'Could not get location';
+              window.setTimeout(() => {
+                btn.title = 'My location';
+              }, 2500);
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+          );
+        });
+
+        return wrapper;
+      },
+    });
+
     const zoom = L.control.zoom({ position: 'bottomright' });
+    const locate = new LocateControl();
     zoom.addTo(map);
+    locate.addTo(map);
     return () => {
+      map.removeControl(locate);
       map.removeControl(zoom);
     };
-  }, [map]);
+  }, [map, setMapView]);
+
   return null;
 }
 
@@ -196,6 +251,7 @@ function MapContent({
   hintCenterLeft,
   showMarkers,
   showRadiusCircles,
+  pendingRadiusPreview,
   visibleMemoryIds,
   memorySearchMatchSet,
   onMapClick,
@@ -220,6 +276,8 @@ function MapContent({
   hintCenterLeft: string;
   showMarkers: boolean;
   showRadiusCircles: boolean;
+  /** Pending click position while adding a memory — included in radius merge preview. */
+  pendingRadiusPreview: { lat: number; lng: number } | null;
   visibleMemoryIds: Set<string>;
   memorySearchMatchSet: Set<string> | null;
   onMapClick: (latlng: L.LatLng) => void;
@@ -257,6 +315,13 @@ function MapContent({
     () => memoriesInSidebarOrder(memories, groups).filter((m) => visibleMemoryIds.has(m.id)),
     [memories, groups, visibleMemoryIds]
   );
+
+  const radiusCircleLayers = useMemo(() => {
+    if (!showRadiusCircles) return null;
+    return buildRadiusCircleLayers(sortedVisible, MEMORY_RADIUS_METERS, {
+      previewLatLng: pendingRadiusPreview,
+    });
+  }, [showRadiusCircles, sortedVisible, pendingRadiusPreview]);
 
   const { timelinePaths, routeStartIds, routeEndIds } = (() => {
     if (!timelineEnabled)
@@ -347,7 +412,24 @@ function MapContent({
         />
       )}
       {showRadiusCircles &&
-        sortedVisible.map((m) => (
+        radiusCircleLayers &&
+        radiusCircleLayers.merged.map((layer) => (
+          <GeoJSON
+            key={layer.key}
+            data={layer.feature}
+            pathOptions={{
+              color: theme === 'dark' ? '#93c5fd' : '#2563eb',
+              weight: 1.5,
+              opacity: 0.55,
+              fillColor: theme === 'dark' ? '#60a5fa' : '#3b82f6',
+              fillOpacity: 0.08,
+              interactive: false,
+            }}
+          />
+        ))}
+      {showRadiusCircles &&
+        radiusCircleLayers &&
+        radiusCircleLayers.individual.map((m) => (
           <Circle
             key={`radius-${m.id}`}
             center={[m.lat, m.lng]}
@@ -453,8 +535,6 @@ export function MapView({
   const moodHeatmapEnabled = useMemoryStore((s) => s.moodHeatmapEnabled);
   const markersVisible = useMemoryStore((s) => s.markersVisible);
   const radiusCirclesEnabled = useMemoryStore((s) => s.radiusCirclesEnabled);
-  const terrainContoursEnabled = useMemoryStore((s) => s.terrainContoursEnabled);
-  const boundariesEnabled = useMemoryStore((s) => s.boundariesEnabled);
   const visibleMemories = useMemo(() => {
     let list = filterStarred ? memories.filter((m) => m.starred) : memories;
     list = filterMemoriesByDate(list, dateFilterFrom, dateFilterTo);
@@ -919,10 +999,8 @@ export function MapView({
         zoomControl={false}
       >
         <SetMapRef />
-        <ZoomControlPlacement />
+        <LocateAndZoomControls />
         <TileLayer url={tileUrl} subdomains="abcd" />
-        <TerrainContoursLayer enabled={terrainContoursEnabled && !spatialWalkActive} />
-        <BoundariesLayer enabled={boundariesEnabled && !spatialWalkActive} />
         <HeatmapLayer memories={visibleMemories} enabled={heatmapEnabled && !spatialWalkActive} />
         <MoodHeatmapLayer memories={visibleMemories} enabled={moodHeatmapEnabled && !spatialWalkActive} />
         <MapContent
@@ -939,6 +1017,7 @@ export function MapView({
           hintCenterLeft={hintCenterLeft}
           showMarkers={markersVisible}
           showRadiusCircles={radiusCirclesEnabled && !spatialWalkActive}
+          pendingRadiusPreview={isAddingMemory && pendingLatLng ? pendingLatLng : null}
           visibleMemoryIds={visibleMemoryIds}
           memorySearchMatchSet={memorySearchMatchSet}
           onMapClick={onMapClick}

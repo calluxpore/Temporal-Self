@@ -12,9 +12,6 @@ import { MarkersToggle } from './MarkersToggle';
 import { RadiusCirclesToggle } from './RadiusCirclesToggle';
 import { FavoritesToggle } from './FavoritesToggle';
 import { ExportImportButtons } from './ExportImportButtons';
-import { TerrainContoursToggle } from './TerrainContoursToggle';
-import { BoundariesToggle } from './BoundariesToggle';
-
 export function TopControlsBar({
   visible = true,
   centerOnViewport = false,
@@ -46,8 +43,6 @@ export function TopControlsBar({
         <div className={`inline-flex max-w-[100vw] flex-nowrap items-center justify-center gap-1.5 px-2 pt-2.5 overflow-visible ${visible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           <ThemeToggle variant="bar" />
           <MapStyleToggle variant="bar" />
-          <TerrainContoursToggle variant="bar" />
-          <BoundariesToggle variant="bar" />
           <TimelineToggle variant="bar" />
           <TimelineLineStyleToggle variant="bar" />
           <MarkersToggle variant="bar" />

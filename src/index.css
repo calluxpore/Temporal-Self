@@ -85,13 +85,55 @@ body,
   background: var(--color-map-water);
 }
 
+/* Bottom-right map controls: rounded tiles, my location above zoom */
+.leaflet-bottom.leaflet-right .leaflet-control-zoom.leaflet-bar,
+.leaflet-bottom.leaflet-right .leaflet-control-locate.leaflet-bar {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+  border: none;
+}
+
+.leaflet-bottom.leaflet-right .leaflet-control-locate {
+  margin-bottom: 8px !important;
+}
+
+/* Leaflet uses display:block + line-height on links; flex centers the SVG reliably */
+.leaflet-bottom.leaflet-right .leaflet-control-locate-btn {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  line-height: 0 !important;
+  text-align: center;
+  color: #333;
+  box-sizing: border-box;
+}
+
+.leaflet-bottom.leaflet-right .leaflet-control-locate-btn svg {
+  display: block;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.leaflet-bottom.leaflet-right .leaflet-control-zoom a {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  line-height: 0 !important;
+}
+
+.leaflet-control-locate-btn.leaflet-control-locate-pending {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 @media (pointer: coarse) {
-  .leaflet-control-zoom a {
+  .leaflet-bottom.leaflet-right .leaflet-control-zoom a,
+  .leaflet-bottom.leaflet-right .leaflet-control-locate-btn {
     min-height: 44px;
     min-width: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 }
 

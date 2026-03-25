@@ -32,14 +32,15 @@ export function HeatmapToggle({ variant = 'fixed' }: { variant?: TopControlVaria
           width="22"
           height="22"
           viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
+          fill="currentColor"
           className={heatmapEnabled ? 'text-accent' : 'text-text-secondary'}
+          aria-hidden
         >
-          <circle cx="12" cy="12" r="10" opacity="0.3" />
-          <circle cx="12" cy="12" r="6" opacity="0.5" />
-          <circle cx="12" cy="12" r="2" />
+          {/* Overlapping intensity blobs — reads as density / heat, not geometric radius */}
+          <circle cx="9" cy="14" r="4.5" opacity="0.22" />
+          <circle cx="14" cy="12" r="5" opacity="0.32" />
+          <circle cx="11" cy="10" r="4" opacity="0.42" />
+          <circle cx="12" cy="13" r="2.8" opacity="0.65" />
         </svg>
       </button>
       <span

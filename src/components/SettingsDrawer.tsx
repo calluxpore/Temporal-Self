@@ -430,14 +430,6 @@ export function SettingsDrawer() {
                     <td className="px-3 py-2 text-text-primary">Toggle mood heatmap</td>
                   </tr>
                   <tr className="border-b border-border">
-                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + J</td>
-                    <td className="px-3 py-2 text-text-primary">Toggle terrain contours</td>
-                  </tr>
-                  <tr className="border-b border-border">
-                    <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + U</td>
-                    <td className="px-3 py-2 text-text-primary">Toggle boundaries</td>
-                  </tr>
-                  <tr className="border-b border-border">
                     <td className="bg-surface-elevated/50 px-3 py-2 text-text-secondary">Alt + M</td>
                     <td className="px-3 py-2 text-text-primary">Toggle markers</td>
                   </tr>

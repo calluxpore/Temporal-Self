@@ -121,3 +121,29 @@ export function serializeNotesFrontMatter(frontMatter: NotesFrontMatter, body: s
   return parts.join('\n') + (bodyClean ? '\n' + bodyClean : '');
 }
 
+const AUDIO_TRANSCRIPTION_HEADING = '## Audio transcription';
+
+/**
+ * Inserts or replaces the "## Audio transcription" section in the notes body (below YAML).
+ * Preserves front matter and all other body content.
+ */
+export function mergeAudioTranscriptionIntoNotes(notes: string, transcript: string): string {
+  const cleaned = transcript.trim();
+  if (!cleaned) return notes;
+
+  const raw = (notes ?? '').replace(/\r\n/g, '\n');
+  const stripRe = /(?:^|\n)## Audio transcription *\n[\s\S]*?(?=\n## [^#]|$)/g;
+  const section = `${AUDIO_TRANSCRIPTION_HEADING}\n\n${cleaned}\n`;
+
+  if (!raw.startsWith('---')) {
+    const remainder = raw.replace(stripRe, '').replace(/^\n+/, '').replace(/\n+$/, '');
+    return remainder ? `${remainder}\n\n${section.trimEnd()}\n` : `${section.trimEnd()}\n`;
+  }
+
+  const { frontMatter, body } = parseNotesFrontMatter(raw);
+  const bodyRaw = body.replace(/^\n+/, '').replace(/\n+$/, '');
+  const remainder = bodyRaw.replace(stripRe, '').replace(/^\n+/, '').replace(/\n+$/, '');
+  const newBody = remainder ? `${remainder}\n\n${section.trimEnd()}\n` : `${section.trimEnd()}\n`;
+  return serializeNotesFrontMatter(frontMatter, newBody);
+}
+

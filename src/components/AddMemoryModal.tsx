@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import EmojiPicker, { type EmojiClickData, Theme, EmojiStyle } from 'emoji-picker-react';
 import { useMemoryStore } from '../store/memoryStore';
 import { getMemoryImages, normalizePhonePhotoToDataUrl } from '../utils/imageUtils';
-import { analyzePhoto } from '../utils/analyzePhoto';
+import { analyzePhoto, transcribeVoiceMemo } from '../utils/analyzePhoto';
 import { getFirstReviewDate, toISODateString } from '../utils/spacedRepetition';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
@@ -11,7 +11,11 @@ import { ConfirmDialog } from './ConfirmDialog';
 import type { Memory, MemoryMood, PendingLatLng } from '../types/memory';
 import { MEMORY_MOOD_OPTIONS, parseMemoryMood } from '../utils/memoryMoods';
 import { NotionNotesEditor } from './NotionNotesEditor';
-import { parseNotesFrontMatter, serializeNotesFrontMatter } from '../utils/notesFrontMatter';
+import {
+  mergeAudioTranscriptionIntoNotes,
+  parseNotesFrontMatter,
+  serializeNotesFrontMatter,
+} from '../utils/notesFrontMatter';
 import { memoryNoteDisplayName, vaultTitleFilenameError } from '../utils/vaultMarkdown';
 import { blobToDataUrl, isVoiceRecordingSupported, preferredVoiceMimeType } from '../utils/voiceNote';
 import { VoiceNoteInlinePlayer } from './VoiceNoteInlinePlayer';
@@ -146,7 +150,8 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const voiceSupported = useMemo(() => isVoiceRecordingSupported(), []);
-  const canSuggestWithAi = !!aiProvider && !!aiApiKey.trim() && imageDataUrls.length > 0;
+  const canSuggestWithAi =
+    !!aiProvider && !!aiApiKey.trim() && (imageDataUrls.length > 0 || !!audioDataUrl?.trim());
 
   const stopMediaStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -256,25 +261,42 @@ export function AddMemoryModal({ pending, editingMemory, onClose }: AddMemoryMod
   };
 
   const runAiSuggestion = useCallback(async () => {
-    if (!aiProvider || !aiApiKey.trim() || !imageDataUrls[0]) return;
+    if (!aiProvider || !aiApiKey.trim()) return;
+    const hasPhoto = imageDataUrls.length > 0;
+    const hasAudio = !!audioDataUrl?.trim();
+    if (!hasPhoto && !hasAudio) return;
     setAiLoading(true);
     setAiError(null);
     try {
-      const resized = await resizeImageIfNeeded(imageDataUrls[0], 900);
-      const result = await analyzePhoto(resized, aiProvider, aiApiKey.trim());
-      setTitle(result.title);
-      setCustomLabel(result.emoji);
-      setPlaceDescriptor(result.placeDescriptor);
-      setAiSuggestedTitle(true);
-      setAiSuggestedLabel(true);
-      setAiSuggestedPlace(true);
-      setVaultTitleError(null);
-    } catch {
-      setAiError('Analysis failed — check your API key in Settings');
+      const errs: string[] = [];
+      if (hasPhoto) {
+        try {
+          const resized = await resizeImageIfNeeded(imageDataUrls[0], 900);
+          const result = await analyzePhoto(resized, aiProvider, aiApiKey.trim());
+          setTitle(result.title);
+          setCustomLabel(result.emoji);
+          setPlaceDescriptor(result.placeDescriptor);
+          setAiSuggestedTitle(true);
+          setAiSuggestedLabel(true);
+          setAiSuggestedPlace(true);
+          setVaultTitleError(null);
+        } catch (e: unknown) {
+          errs.push(e instanceof Error ? e.message : 'Photo analysis failed.');
+        }
+      }
+      if (hasAudio) {
+        try {
+          const transcript = await transcribeVoiceMemo(audioDataUrl!, aiProvider, aiApiKey.trim());
+          setNotes((prev) => mergeAudioTranscriptionIntoNotes(prev, transcript));
+        } catch (e: unknown) {
+          errs.push(e instanceof Error ? e.message : 'Transcription failed.');
+        }
+      }
+      if (errs.length) setAiError(errs.join(' '));
     } finally {
       setAiLoading(false);
     }
-  }, [aiProvider, aiApiKey, imageDataUrls]);
+  }, [aiProvider, aiApiKey, imageDataUrls, audioDataUrl]);
 
   const buildMemoryPayload = () => {
     const titleToSave =
