@@ -3,26 +3,10 @@ import { useMemoryStore } from '../store/memoryStore';
 import { useMapRef } from '../context/mapContextState';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import { getMemoryImages } from '../utils/imageUtils';
-import { formatDate } from '../utils/formatDate';
 import { formatCoords } from '../utils/formatCoords';
 import { moodOption } from '../utils/memoryMoods';
+import { parseNotesFrontMatter } from '../utils/notesFrontMatter';
 import type { Memory } from '../types/memory';
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function popupHtml(memory: Memory): string {
-  const images = getMemoryImages(memory);
-  const firstImage = images[0] ?? null;
-  if (!firstImage) return `<div class="spatial-walk-popup-text">No photo for this memory.</div>`;
-  return `<img src="${firstImage}" alt="" class="spatial-walk-popup-image" /><div class="spatial-walk-popup-text">${escapeHtml(memory.title)}</div>`;
-}
 
 function asLatLng(memory: Memory): [number, number] {
   return [Number(memory.lat), Number(memory.lng)];
@@ -93,12 +77,6 @@ export function SpatialWalkOverlay({ memory }: SpatialWalkOverlayProps) {
   const handleShowMe = useCallback(() => {
     if (!memory || !map) return;
     setRevealed(true);
-    map.openPopup(popupHtml(memory), asLatLng(memory), {
-      className: 'spatial-walk-popup',
-      autoPan: true,
-      closeButton: false,
-      offset: [0, -8],
-    });
   }, [memory, map]);
 
   const handleGotIt = useCallback(() => {
@@ -147,7 +125,14 @@ export function SpatialWalkOverlay({ memory }: SpatialWalkOverlayProps) {
   const placeName = locationName?.split(',')[0]?.trim() || null;
   const fallbackPlaceCue = placeName || formatCoords(memory.lat, memory.lng);
   const placeCue = placeDescriptor || fallbackPlaceCue;
-  const moodLabel = memory.mood ? moodOption(memory.mood)?.label : null;
+  const mood = memory.mood ? moodOption(memory.mood) : null;
+  const moodLabel = mood?.label ?? null;
+  const moodEmoji = mood?.emoji ?? null;
+  const firstImage = getMemoryImages(memory)[0] ?? null;
+  const customEmoji = memory.customLabel?.trim() || null;
+  const parsedNotes = parseNotesFrontMatter(memory.notes ?? '');
+  const notesSnippet = (parsedNotes.body || '').trim().replace(/\s+/g, ' ').slice(0, 180);
+  const hasNotesSnippet = notesSnippet.length > 0;
 
   return (
     <>
@@ -157,6 +142,64 @@ export function SpatialWalkOverlay({ memory }: SpatialWalkOverlayProps) {
           style={{ left: markerPoint.x, top: markerPoint.y }}
           aria-hidden
         />
+      )}
+      {markerPoint && firstImage && !revealed && (
+        <div
+          className="pointer-events-none fixed z-[1126]"
+          style={{
+            left: markerPoint.x,
+            top: markerPoint.y,
+            transform: 'translate(-50%, calc(-100% - 18px))',
+          }}
+          aria-hidden
+        >
+          <img
+            src={firstImage}
+            alt=""
+            className="h-36 w-56 max-w-[70vw] rounded-xl border border-border bg-surface-elevated object-contain shadow-2xl"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+      )}
+      {markerPoint && firstImage && revealed && (
+        <div
+          className="pointer-events-none fixed z-[1126] w-[min(340px,82vw)]"
+          style={{
+            left: markerPoint.x,
+            top: markerPoint.y,
+            transform: 'translate(-50%, calc(-100% - 18px))',
+          }}
+          aria-hidden
+        >
+          <div className="overflow-hidden rounded-xl border border-border bg-surface/92 shadow-2xl backdrop-blur-sm">
+            <img
+              src={firstImage}
+              alt=""
+              className="h-36 w-full bg-surface-elevated object-contain"
+              loading="lazy"
+              decoding="async"
+            />
+            <div className="space-y-1 p-2.5">
+              <p className="font-display text-sm font-semibold text-text-primary">
+                {memory.title?.trim() || 'Untitled memory'}
+              </p>
+              <p className="text-xs text-text-secondary">
+                {(customEmoji || moodEmoji) ? `${customEmoji || moodEmoji} ` : ''}
+                {moodLabel ? `Mood: ${moodLabel}` : fallbackPlaceCue}
+              </p>
+              {placeDescriptor && (
+                <p className="text-xs italic text-text-muted">"{placeDescriptor}"</p>
+              )}
+              {hasNotesSnippet && (
+                <p className="line-clamp-3 text-xs text-text-secondary">
+                  {notesSnippet}
+                  {(parsedNotes.body || '').trim().length > 180 ? '...' : ''}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
       <div className="pointer-events-none fixed inset-0 z-[1125] flex items-end justify-center p-4">
         <div className="pointer-events-auto mb-6 w-[min(560px,95vw)] rounded-xl border border-border bg-surface/82 p-4 shadow-xl backdrop-blur-sm">
@@ -189,13 +232,9 @@ export function SpatialWalkOverlay({ memory }: SpatialWalkOverlayProps) {
             </>
           ) : (
             <>
-              <p className="font-display text-lg font-semibold text-text-primary">{memory.title}</p>
-              {placeDescriptor && (
-                <p className="mt-1 text-sm italic text-text-muted">"{placeDescriptor}"</p>
-              )}
-              <p className="mt-1 font-mono text-xs text-text-secondary">{formatDate(memory.date, true)}</p>
-              <p className="mt-1 text-sm text-text-secondary">{fallbackPlaceCue}</p>
-              {moodLabel && <p className="mt-1 text-sm text-text-secondary">Mood: {moodLabel}</p>}
+              <p className="text-center font-mono text-xs uppercase tracking-wide text-text-muted">
+                Details shown on map card
+              </p>
               <p className="mt-1 font-mono text-xs text-text-muted">
                 {currentIndex} of {recallSessionInitialCount} in walk
               </p>

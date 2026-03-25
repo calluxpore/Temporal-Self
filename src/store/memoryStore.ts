@@ -150,6 +150,8 @@ interface MemoryState {
   setTopShelfVisibleSpatial: (value: boolean) => void;
   setSidebarView: (view: MemoryState['sidebarView']) => void;
   addMemory: (memory: Memory) => void;
+  /** Add many memories in one state update (used by bulk photo import). */
+  addMemories: (memories: Memory[]) => void;
   updateMemory: (id: string, updates: Partial<Memory>) => void;
   /** Update a memory without pushing an undo snapshot (use for live dragging). */
   updateMemoryWithoutUndo: (id: string, updates: Partial<Memory>) => void;
@@ -560,6 +562,16 @@ export const useMemoryStore = create<MemoryState>()(
           isAddingMemory: false,
           pendingLatLng: null,
         })),
+      addMemories: (memories) =>
+        set((state) => {
+          if (!memories.length) return state;
+          return {
+            ...pushUndoInSet(state),
+            memories: [...state.memories, ...memories],
+            isAddingMemory: false,
+            pendingLatLng: null,
+          };
+        }),
 
       updateMemory: (id, updates) =>
         set((state) => ({

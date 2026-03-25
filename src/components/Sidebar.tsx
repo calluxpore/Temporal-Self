@@ -109,6 +109,7 @@ function MemoryListItem({
   const [editValue, setEditValue] = useState(memory.customLabel ?? '');
   const isHidden = memory.hidden ?? false;
   const isUntitledImported = memory.importedFromPhoto === true && memory.title.trim() === '';
+  const firstImage = getMemoryImages(memory)[0] ?? null;
   const displayLabel = (memory.customLabel?.trim() || null) ?? label ?? '';
   const effectiveLabel = displayLabel || label || '';
 
@@ -194,11 +195,13 @@ function MemoryListItem({
         className={`flex min-h-[28px] min-w-0 flex-1 touch-target items-center gap-1.5 py-0.5 pl-1 text-left ${isHidden ? 'opacity-50' : ''}`}
       >
         <div className="h-6 w-6 flex-shrink-0 overflow-hidden rounded bg-surface-elevated">
-          {getMemoryImages(memory)[0] ? (
+          {firstImage ? (
             <img
-              src={getMemoryImages(memory)[0]}
+              src={firstImage}
               alt=""
               className="h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-text-muted font-mono text-[10px]">

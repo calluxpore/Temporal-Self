@@ -22,6 +22,7 @@ import { normalizePhonePhotoToDataUrl } from './utils/imageUtils';
 import { getFirstReviewDate, toISODateString } from './utils/spacedRepetition';
 import { useVaultSync } from './hooks/useVaultSync';
 import { useAiQueue } from './hooks/useAiQueue';
+import type { Memory } from './types/memory';
 const SPLASH_SEEN_STORAGE_KEY = 'temporal-self-splash-seen';
 const ONBOARDING_SEEN_STORAGE_KEY = 'temporal-self-onboarding-seen';
 
@@ -90,6 +91,7 @@ function AppContent() {
   const setRecallSessionQueue = useMemoryStore((s) => s.setRecallSessionQueue);
   const endRecallSession = useMemoryStore((s) => s.endRecallSession);
   const addMemory = useMemoryStore((s) => s.addMemory);
+  const addMemories = useMemoryStore((s) => s.addMemories);
   const logStudyMemoryCreated = useMemoryStore((s) => s.logStudyMemoryCreated);
   const [showSplash, setShowSplash] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -144,7 +146,7 @@ function AppContent() {
     }
   }, [ungeotaggedPhotos.length]);
 
-  const createImportedMemory = useCallback(
+  const buildImportedMemory = useCallback(
     (payload: { lat: number; lng: number; dataUrl: string; dateTaken: string | null }) => {
       const memory = {
         id: crypto.randomUUID(),
@@ -161,14 +163,9 @@ function AppContent() {
         nextReviewAt: toISODateString(getFirstReviewDate()),
         reviewCount: 0,
       };
-      addMemory(memory);
-      logStudyMemoryCreated(memory.id);
-      if (aiProvider && aiApiKey && aiAutoAnalyze) {
-        enqueueAiAnalysis(memory.id);
-      }
       return memory;
     },
-    [addMemory, logStudyMemoryCreated, aiProvider, aiApiKey, aiAutoAnalyze, enqueueAiAnalysis]
+    []
   );
 
   const processPhoto = useCallback(async (file: File, profile: BulkImportProfile): Promise<ProcessResult> => {
@@ -206,6 +203,7 @@ function AppContent() {
       const profile = getBulkImportProfile(total);
       setProcessingProgress({ done: 0, total });
       const geotaggedLatLngs: Array<[number, number]> = [];
+      const nextGeotaggedMemories: Memory[] = [];
       const nextUngeotagged: UngeotaggedPhotoItem[] = [];
       let placed = 0;
       let claimed = 0;
@@ -218,12 +216,13 @@ function AppContent() {
           claimed += 1;
           const result = await processPhoto(imageFiles[index], profile);
           if (result.lat != null && result.lng != null) {
-            createImportedMemory({
+            const memory = buildImportedMemory({
               lat: result.lat,
               lng: result.lng,
               dataUrl: result.dataUrl,
               dateTaken: result.dateTaken,
             });
+            nextGeotaggedMemories.push(memory);
             geotaggedLatLngs.push([result.lat, result.lng]);
             placed += 1;
           } else {
@@ -246,6 +245,15 @@ function AppContent() {
       await Promise.all(
         Array.from({ length: Math.min(profile.concurrency, total) }, () => worker())
       );
+      if (nextGeotaggedMemories.length) {
+        addMemories(nextGeotaggedMemories);
+        for (const memory of nextGeotaggedMemories) {
+          logStudyMemoryCreated(memory.id);
+          if (aiProvider && aiApiKey && aiAutoAnalyze) {
+            enqueueAiAnalysis(memory.id);
+          }
+        }
+      }
       setProcessingProgress(null);
 
       if (geotaggedLatLngs.length > 0 && map) {
@@ -277,19 +285,24 @@ function AppContent() {
       }
       if (missing > 0) setTrayOpen(true);
     },
-    [createImportedMemory, map, processPhoto]
+    [addMemories, aiApiKey, aiAutoAnalyze, aiProvider, buildImportedMemory, enqueueAiAnalysis, logStudyMemoryCreated, map, processPhoto]
   );
 
   const placeUngeotaggedPhoto = useCallback(
     (photoId: string, lat: number, lng: number) => {
       const photo = ungeotaggedPhotos.find((p) => p.id === photoId);
       if (!photo) return false;
-      createImportedMemory({ lat, lng, dataUrl: photo.dataUrl, dateTaken: photo.dateTaken });
+      const memory = buildImportedMemory({ lat, lng, dataUrl: photo.dataUrl, dateTaken: photo.dateTaken });
+      addMemory(memory);
+      logStudyMemoryCreated(memory.id);
+      if (aiProvider && aiApiKey && aiAutoAnalyze) {
+        enqueueAiAnalysis(memory.id);
+      }
       setUngeotaggedPhotos((prev) => prev.filter((p) => p.id !== photoId));
       setPlaceModePhotoId(null);
       return true;
     },
-    [createImportedMemory, ungeotaggedPhotos]
+    [addMemory, aiApiKey, aiAutoAnalyze, aiProvider, buildImportedMemory, enqueueAiAnalysis, logStudyMemoryCreated, ungeotaggedPhotos]
   );
 
   const showAddModal = isAddingMemory && pendingLatLng;

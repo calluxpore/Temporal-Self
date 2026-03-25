@@ -100,7 +100,7 @@ There is **no automated test script** in `package.json` today; rely on lint, typ
 ### Recall (SM-2)
 
 - **Flashcards** (brain icon or **`Alt+R`**): right-hand **Recall** panel; map **flies** to the memory at zoom **17**; **I remember** / **Show me** (opens viewer) / **Skip**; number keys **1** / **2** / **3** map to those actions when the modal has focus.
-- **Spatial walk** (route icon or **`Alt+W`**): map-centered cues (title hidden until you tap **Show me**); map **flies** at zoom **15**; bottom card shows a **place cue** (sense of place if set, otherwise **reverse-geocoded** label or formatted coordinates), then **I remember** / **Show me**; after reveal, **Got it** / **Next** and a map popup with photo + title. Same SM-2 scheduling as flashcards. Order follows **sidebar label order** (ungrouped then grouped). Memories **without valid coordinates** are skipped (browser console warning if any). **`Alt+B`** toggles the **top control shelf** during the walk (preference saved separately from the main map). **Escape** ends recall / walk when the map stack has focus.
+- **Spatial walk** (route icon or **`Alt+W`**): map-centered cues; map **flies** at zoom **15**. The **bottom dialog** shows the **place cue** (sense of place if set, otherwise **reverse-geocoded** label or formatted coordinates) plus recall controls. If a memory has a photo, a **floating clue card near the node** shows the image preview; after tapping **Show me**, that floating card expands to show **photo + title + mood/emoji + place + a notes snippet**. Then **Got it** / **Next** continues scheduling (same SM-2 logic as flashcards). Order follows **sidebar label order** (ungrouped then grouped). Memories **without valid coordinates** are skipped (browser console warning if any). **`Alt+B`** toggles the **top control shelf** during the walk (preference saved separately from the main map). **Escape** ends recall / walk when the map stack has focus.
 - **Recall stats** tab summarizes practice performance; scheduling uses **SM-2** fields on each memory.
 
 ### Top bar (floating)
@@ -118,7 +118,7 @@ When the shelf is visible: **theme**, **map style**, **timeline** on/off, **time
 
 - **JSON** and **CSV** export/import (CSV is a reduced column set).
 - **Styled map screenshot** (**`Ctrl+I`**): framed capture with timestamp; timeline/markers forced on for the shot.
-- **PDF report** (**`Ctrl+R`**): cover, overview, distributions, mood analytics, optional study table, recall summaries.
+- **PDF report** (**`Ctrl+R`**): cover, overview, calendar/group/mood breakdowns aligned with the in-app stats tabs, plus optional study table and recall summaries.
 - **Research / Study** (optional): participant id, checkpoint tagging, completion times, and **append-only study events** exportable with JSON backup (see below).
 
 ### First run and help

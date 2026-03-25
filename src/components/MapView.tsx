@@ -237,6 +237,18 @@ const SEARCH_HIGHLIGHT_BLUE = '#3b82f6';
 const TIMELINE_COLOR = { dark: '#60a5fa', light: '#2563eb' } as const;
 const MEMORY_RADIUS_METERS = 2000;
 
+/** FNV-1a-ish hash so GeoJSON keys change when any radius-relevant coordinate changes (react-leaflet GeoJSON ignores `data` updates). */
+function hashRadiusPositions(memories: Memory[]): string {
+  let h = 2166136261;
+  for (const m of memories) {
+    h ^= Math.round(m.lat * 1e6) | 0;
+    h = Math.imul(h, 16777619);
+    h ^= Math.round(m.lng * 1e6) | 0;
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
 function MapContent({
   memories,
   groups,
@@ -244,6 +256,7 @@ function MapContent({
   searchHighlight,
   timelineEnabled,
   timelineLineStyle,
+  spatialWalkActive,
   hiddenGroupIds,
   theme,
   mapBlurred,
@@ -252,6 +265,8 @@ function MapContent({
   showMarkers,
   showRadiusCircles,
   pendingRadiusPreview,
+  /** While dragging a memory card, use this position for radius math (matches crosshair; store may lag one frame). */
+  radiusDragOverride,
   visibleMemoryIds,
   memorySearchMatchSet,
   onMapClick,
@@ -269,6 +284,7 @@ function MapContent({
   searchHighlight: SearchHighlight;
   timelineEnabled: boolean;
   timelineLineStyle: 'spline' | 'orthogonal';
+  spatialWalkActive: boolean;
   hiddenGroupIds: Set<string>;
   theme: 'dark' | 'light';
   mapBlurred: boolean;
@@ -278,6 +294,7 @@ function MapContent({
   showRadiusCircles: boolean;
   /** Pending click position while adding a memory — included in radius merge preview. */
   pendingRadiusPreview: { lat: number; lng: number } | null;
+  radiusDragOverride: { id: string; lat: number; lng: number } | null;
   visibleMemoryIds: Set<string>;
   memorySearchMatchSet: Set<string> | null;
   onMapClick: (latlng: L.LatLng) => void;
@@ -290,6 +307,16 @@ function MapContent({
   onMarkerClick?: (memory: Memory) => void;
 }) {
   const map = useMap();
+  // Only include the fields used for timeline geometry so recall state updates
+  // (e.g. spaced repetition `nextReviewAt` / `reviewCount`) don't force reroute jitter.
+  const memoriesTimelineKey = useMemo(() => {
+    return memories
+      .map(
+        (m) =>
+          `${m.id}|${m.lat}|${m.lng}|${m.groupId ?? ''}|${m.hidden ?? false}|${m.order ?? ''}|${m.createdAt}`
+      )
+      .join(';');
+  }, [memories]);
   const memoryIdToLabel = useMemo(() => {
     const labels = new Map<string, string>();
     const visible = memories.filter((m) => visibleMemoryIds.has(m.id));
@@ -316,23 +343,35 @@ function MapContent({
     [memories, groups, visibleMemoryIds]
   );
 
+  const memoriesForRadius = useMemo(() => {
+    if (!radiusDragOverride) return sortedVisible;
+    return sortedVisible.map((m) =>
+      m.id === radiusDragOverride.id ? { ...m, lat: radiusDragOverride.lat, lng: radiusDragOverride.lng } : m
+    );
+  }, [sortedVisible, radiusDragOverride]);
+
+  const radiusLayoutHash = useMemo(() => hashRadiusPositions(memoriesForRadius), [memoriesForRadius]);
+
   const radiusCircleLayers = useMemo(() => {
     if (!showRadiusCircles) return null;
-    return buildRadiusCircleLayers(sortedVisible, MEMORY_RADIUS_METERS, {
+    return buildRadiusCircleLayers(memoriesForRadius, MEMORY_RADIUS_METERS, {
       previewLatLng: pendingRadiusPreview,
     });
-  }, [showRadiusCircles, sortedVisible, pendingRadiusPreview]);
+  }, [showRadiusCircles, memoriesForRadius, pendingRadiusPreview]);
 
-  const { timelinePaths, routeStartIds, routeEndIds } = (() => {
-    if (!timelineEnabled)
+  const { timelinePaths, routeStartIds, routeEndIds } = useMemo(() => {
+    if (!timelineEnabled) {
       return {
         timelinePaths: [] as [number, number][][],
         routeStartIds: new Set<string>(),
         routeEndIds: new Set<string>(),
       };
+    }
 
     const makePositions = (raw: [number, number][]) =>
-      timelineLineStyle === 'spline' ? smoothCurveThroughPoints(raw, 16) : buildOrthogonalRoute(map, raw, { radiusPx: 12, arcSegments: 6 });
+      timelineLineStyle === 'spline'
+        ? smoothCurveThroughPoints(raw, 16)
+        : buildOrthogonalRoute(map, raw, { radiusPx: 12, arcSegments: 6 });
 
     const paths: [number, number][][] = [];
     const routeStartIds = new Set<string>();
@@ -348,6 +387,7 @@ function MapContent({
       routeStartIds.add(groupMemories[0].id);
       routeEndIds.add(groupMemories[groupMemories.length - 1].id);
     }
+
     const ungrouped = memories
       .filter((m) => (m.groupId ?? null) === null && !(m.hidden ?? false))
       .sort(compareOrderThenCreatedAt);
@@ -357,8 +397,9 @@ function MapContent({
       routeStartIds.add(ungrouped[0].id);
       routeEndIds.add(ungrouped[ungrouped.length - 1].id);
     }
+
     return { timelinePaths: paths, routeStartIds, routeEndIds };
-  })();
+  }, [timelineEnabled, timelineLineStyle, spatialWalkActive, map, groups, hiddenGroupIds, memoriesTimelineKey]);
 
   return (
     <>
@@ -394,8 +435,10 @@ function MapContent({
           positions={positions}
           pathOptions={{
             color: TIMELINE_COLOR[theme],
-            weight: 2,
-            opacity: 0.9,
+            weight: spatialWalkActive ? 3 : 2,
+            opacity: spatialWalkActive ? 1 : 0.9,
+            // Keep the original dashed pattern (was previously '8 6'),
+            // but slightly thicker/brighter during spatial walk for visibility.
             dashArray: '8 6',
             lineCap: 'round',
             lineJoin: 'round',
@@ -415,7 +458,7 @@ function MapContent({
         radiusCircleLayers &&
         radiusCircleLayers.merged.map((layer) => (
           <GeoJSON
-            key={layer.key}
+            key={`${layer.key}@${radiusLayoutHash}`}
             data={layer.feature}
             pathOptions={{
               color: theme === 'dark' ? '#93c5fd' : '#2563eb',
@@ -431,7 +474,7 @@ function MapContent({
         radiusCircleLayers &&
         radiusCircleLayers.individual.map((m) => (
           <Circle
-            key={`radius-${m.id}`}
+            key={`radius-${m.id}-${m.lat.toFixed(5)}-${m.lng.toFixed(5)}`}
             center={[m.lat, m.lng]}
             radius={MEMORY_RADIUS_METERS}
             pathOptions={{
@@ -711,6 +754,7 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (spatialWalkActive) return;
     const persistView = () => {
       const center = map.getCenter();
       setMapView({ lat: center.lat, lng: center.lng, zoom: map.getZoom() });
@@ -722,7 +766,7 @@ export function MapView({
       map.off('moveend', persistView);
       map.off('zoomend', persistView);
     };
-  }, [setMapView]);
+  }, [setMapView, spatialWalkActive]);
 
   // When sidebar selects a memory, flyTo is done by Sidebar; we show the card when the map finishes moving.
   useEffect(() => {
@@ -1010,6 +1054,7 @@ export function MapView({
           searchHighlight={searchHighlight}
           timelineEnabled={timelineEnabled}
           timelineLineStyle={timelineLineStyle}
+          spatialWalkActive={spatialWalkActive}
           hiddenGroupIds={hiddenGroupIds}
           theme={theme}
           mapBlurred={mapBlurred}
@@ -1018,6 +1063,11 @@ export function MapView({
           showMarkers={markersVisible}
           showRadiusCircles={radiusCirclesEnabled && !spatialWalkActive}
           pendingRadiusPreview={isAddingMemory && pendingLatLng ? pendingLatLng : null}
+          radiusDragOverride={
+            draggingMemoryId && dragFocusLatLng
+              ? { id: draggingMemoryId, lat: dragFocusLatLng.lat, lng: dragFocusLatLng.lng }
+              : null
+          }
           visibleMemoryIds={visibleMemoryIds}
           memorySearchMatchSet={memorySearchMatchSet}
           onMapClick={onMapClick}
