@@ -24,6 +24,62 @@ npm install
 
 Use **Node.js 20+** and **npm 10+** (matches the GitHub Actions workflow).
 
+### Dependencies to install (development)
+`npm install` installs both runtime dependencies and dev dependencies listed in `package.json`.
+
+Runtime dependencies:
+- `@tailwindcss/postcss@^4.1.18`
+- `@turf/buffer@^7.3.4`
+- `@turf/distance@^7.3.4`
+- `@turf/helpers@^7.3.4`
+- `@turf/union@^7.3.4`
+- `d3-contour@^4.0.2`
+- `emoji-picker-react@^4.18.0`
+- `exifr@^7.1.3`
+- `heic2any@^0.0.4`
+- `html-to-image@^1.11.13`
+- `html2canvas@^1.4.1`
+- `jspdf@^4.2.1`
+- `leaflet@^1.9.4`
+- `leaflet-compass@^1.5.6`
+- `leaflet-rotate@^0.2.8`
+- `leaflet.heat@^0.2.0`
+- `react@^19.2.0`
+- `react-dom@^19.2.0`
+- `react-leaflet@^5.0.0`
+- `react-leaflet-cluster@^4.0.0`
+- `react-markdown@^10.1.0`
+- `remark-breaks@^4.0.0`
+- `remark-gfm@^4.0.1`
+- `zustand@^5.0.11`
+
+Dev dependencies:
+- `@eslint/js@^9.39.1`
+- `@types/d3-contour@^3.0.6`
+- `@types/leaflet@^1.9.21`
+- `@types/leaflet.heat@^0.2.5`
+- `@types/node@^24.10.1`
+- `@types/react@^19.2.7`
+- `@types/react-dom@^19.2.3`
+- `@vitejs/plugin-react@^5.1.1`
+- `autoprefixer@^10.4.24`
+- `concurrently@^9.1.0`
+- `cross-env@^7.0.3`
+- `electron@^33.2.0`
+- `electron-builder@^25.1.8`
+- `eslint@^9.39.1`
+- `eslint-plugin-react-hooks@^7.0.1`
+- `eslint-plugin-react-refresh@^0.4.24`
+- `globals@^16.5.0`
+- `postcss@^8.5.6`
+- `rcedit@^5.0.2`
+- `tailwindcss@^4.1.18`
+- `typescript@~5.9.3`
+- `typescript-eslint@^8.48.0`
+- `vite@^7.3.1`
+- `vite-plugin-pwa@^1.2.0`
+- `wait-on@^8.0.1`
+
 ### Daily workflow
 
 | Command | Purpose |
@@ -100,7 +156,26 @@ There is **no automated test script** in `package.json` today; rely on lint, typ
 ### Recall (SM-2)
 
 - **Flashcards** (brain icon or **`Alt+R`**): right-hand **Recall** panel; map **flies** to the memory at zoom **17**; **I remember** / **Show me** (opens viewer) / **Skip**; number keys **1** / **2** / **3** map to those actions when the modal has focus.
-- **Spatial walk** (route icon or **`Alt+W`**): map-centered cues; map **flies** at zoom **15**. The **bottom dialog** shows the **place cue** (sense of place if set, otherwise **reverse-geocoded** label or formatted coordinates) plus recall controls. If a memory has a photo, a **floating clue card near the node** shows the image preview; after tapping **Show me**, that floating card expands to show **photo + title + mood/emoji + place + a notes snippet**. Then **Got it** / **Next** continues scheduling (same SM-2 logic as flashcards). Order follows **sidebar label order** (ungrouped then grouped). Memories **without valid coordinates** are skipped (browser console warning if any). **`Alt+B`** toggles the **top control shelf** during the walk (preference saved separately from the main map). **Escape** ends recall / walk when the map stack has focus.
+
+  Flashcards use **SM-2 (Anki-style)** fields stored per memory:
+  - **I remember** schedules the next review using SM-2 as a successful recall (increases the interval).
+  - **Show me** schedules the next review using SM-2 as a failed recall (resets/reduces progress and makes it due sooner).
+  - **Skip for now** does **not** update SM-2 scheduling for that memory.
+
+  Session ordering for the next flashcard run:
+  - Cards are built as a queue at the start of the session.
+  - **Due** cards come first, then **not-due** cards.
+  - Among *due* cards, items you have **forgotten more** (higher internal `failedReviewCount`, i.e. “Show me” more often) are shown earlier; ties use earlier `nextReviewAt`, then older `createdAt`.
+  - The queue order during the current session is fixed; your SM-2 answers affect what becomes due (and its position) the *next* time you run flashcards.
+
+- **Spatial walk** (route icon or **`Alt+W`**): map-centered cues; map **flies** at zoom **15**. The **bottom dialog** shows the **place cue** (sense of place if set, otherwise **reverse-geocoded** label or formatted coordinates) plus recall controls. If a memory has a photo, a **floating clue card near the node** shows the image preview; after tapping **Show me**, that floating card expands to show **photo + title + mood/emoji + place + a notes snippet**. Then:
+  - **Got it** schedules the next review using SM-2 as a failed recall (same SM-2 fields as flashcards).
+  - **Next** advances without updating SM-2 scheduling for that memory.
+
+  Spatial walk ordering:
+  - Iterate **sequentially** through all memories with valid coordinates in **sidebar label order** (ungrouped then grouped).
+  - Memories **without valid coordinates** are skipped (browser console warning if any).
+  - **`Alt+B`** toggles the **top control shelf** during the walk (preference saved separately from the main map). **Escape** ends recall / walk when the map stack has focus.
 - **Recall stats** tab summarizes practice performance; scheduling uses **SM-2** fields on each memory.
 
 ### Top bar (floating)

@@ -104,7 +104,16 @@ export const QUALITY_REMEMBERED = 5;
 export const QUALITY_FAILED = 2;
 
 /** Item with fields needed to pick next for recall. */
-export type RecallCandidate = { id: string; nextReviewAt?: string | null; createdAt: string };
+export type RecallCandidate = {
+  id: string;
+  nextReviewAt?: string | null;
+  createdAt: string;
+  /**
+   * How many times the user previously answered "Show me" for this memory.
+   * Used as a tie-breaker to bring repeatedly-forgotten cards forward.
+   */
+  failedReviewCount?: number;
+};
 
 /**
  * Pick the next memory to show in a recall session: due first (by nextReviewAt, then createdAt).
@@ -116,9 +125,17 @@ export function getNextMemoryToReview(
   const due = memories.filter(isDueForReview);
   if (due.length === 0) return null;
   due.sort((a, b) => {
+    const aFailed = a.failedReviewCount ?? 0;
+    const bFailed = b.failedReviewCount ?? 0;
+    // Higher "forgot" count first.
+    if (aFailed !== bFailed) return bFailed - aFailed;
+
+    // Then earlier due timestamps.
     const aDue = a.nextReviewAt ? new Date(a.nextReviewAt).getTime() : 0;
     const bDue = b.nextReviewAt ? new Date(b.nextReviewAt).getTime() : 0;
     if (aDue !== bDue) return aDue - bDue;
+
+    // Finally, older memories first for stable ordering.
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   });
   return due[0];
@@ -135,27 +152,55 @@ export function getRecallSessionOrderedIds(memories: RecallCandidate[]): string[
     if (isDueForReview(m)) due.push(m);
     else notDue.push(m);
   }
-  const sortByDueThenCreated = (a: RecallCandidate, b: RecallCandidate) => {
+
+  const sortByDue = (a: RecallCandidate, b: RecallCandidate) => {
+    const aFailed = a.failedReviewCount ?? 0;
+    const bFailed = b.failedReviewCount ?? 0;
+    // Higher "forgot" count first.
+    if (aFailed !== bFailed) return bFailed - aFailed;
+
+    // Then earlier due timestamps.
     const aDue = a.nextReviewAt ? new Date(a.nextReviewAt).getTime() : 0;
     const bDue = b.nextReviewAt ? new Date(b.nextReviewAt).getTime() : 0;
     if (aDue !== bDue) return aDue - bDue;
+
+    // Finally, older memories first for stable ordering.
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   };
-  const sortByCreated = (a: RecallCandidate, b: RecallCandidate) =>
-    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-  due.sort(sortByDueThenCreated);
-  notDue.sort(sortByCreated);
+
+  const sortByNotDue = (a: RecallCandidate, b: RecallCandidate) => {
+    // Upcoming due sooner first…
+    const aDue = a.nextReviewAt ? new Date(a.nextReviewAt).getTime() : 0;
+    const bDue = b.nextReviewAt ? new Date(b.nextReviewAt).getTime() : 0;
+    if (aDue !== bDue) return aDue - bDue;
+
+    // …then higher "forgot" count.
+    const aFailed = a.failedReviewCount ?? 0;
+    const bFailed = b.failedReviewCount ?? 0;
+    if (aFailed !== bFailed) return bFailed - aFailed;
+
+    // Stable fallback.
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  };
+
+  due.sort(sortByDue);
+  notDue.sort(sortByNotDue);
   return [...due.map((m) => m.id), ...notDue.map((m) => m.id)];
 }
 
-/** Build ordered list of due memory ids only (by nextReviewAt, then createdAt). */
+/** Build ordered list of due memory ids only (by failedReviewCount, then nextReviewAt, then createdAt). */
 export function getDueRecallSessionOrderedIds(memories: RecallCandidate[]): string[] {
   return memories
     .filter(isDueForReview)
     .sort((a, b) => {
+      const aFailed = a.failedReviewCount ?? 0;
+      const bFailed = b.failedReviewCount ?? 0;
+      if (aFailed !== bFailed) return bFailed - aFailed;
+
       const aDue = a.nextReviewAt ? new Date(a.nextReviewAt).getTime() : 0;
       const bDue = b.nextReviewAt ? new Date(b.nextReviewAt).getTime() : 0;
       if (aDue !== bDue) return aDue - bDue;
+
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     })
     .map((m) => m.id);
