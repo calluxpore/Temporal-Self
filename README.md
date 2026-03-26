@@ -168,7 +168,7 @@ There is **no automated test script** in `package.json` today; rely on lint, typ
   - Among *due* cards, items you have **forgotten more** (higher internal `failedReviewCount`, i.e. “Show me” more often) are shown earlier; ties use earlier `nextReviewAt`, then older `createdAt`.
   - The queue order during the current session is fixed; your SM-2 answers affect what becomes due (and its position) the *next* time you run flashcards.
 
-- **Spatial walk** (route icon or **`Alt+W`**): map-centered cues; map **flies** at zoom **15**. The **bottom dialog** shows the **place cue** (sense of place if set, otherwise **reverse-geocoded** label or formatted coordinates) plus recall controls. If a memory has a photo, a **floating clue card near the node** shows the image preview; after tapping **Show me**, that floating card expands to show **photo + title + mood/emoji + place + a notes snippet**. Then:
+- **Spatial walk** (route icon or **`Alt+W`**): map-centered cues; map **flies** at zoom **15**. The **bottom dialog** shows the **place cue** (sense of place if set, otherwise **reverse-geocoded** label or formatted coordinates) plus recall controls *until you tap Show me*. If a memory has a photo, a **floating clue card near the node** shows the image preview; after tapping **Show me**, that floating card expands to show **photo + title + mood/emoji + place + a notes snippet**, while the bottom dialog switches to **"Details shown on map card"** plus the `Got it` / `Next` buttons. Then:
   - **Got it** schedules the next review using SM-2 as a failed recall (same SM-2 fields as flashcards).
   - **Next** advances without updating SM-2 scheduling for that memory.
 

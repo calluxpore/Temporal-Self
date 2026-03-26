@@ -65,14 +65,14 @@ function MemorySearchResultRow({
   groups: Group[];
   onSelect: () => void;
 }) {
-  const parsed = parseNotesFrontMatter(memory.notes ?? '');
+  const parsed = useMemo(() => parseNotesFrontMatter(memory.notes ?? ''), [memory.notes]);
   const displayDate = parsed.frontMatter.date ?? memory.date;
   const yamlLocation = parsed.frontMatter.location?.trim() || null;
-  const tags = mergeTags(memory, parsed.frontMatter.tags);
-  const links = mergeLinks(memory, parsed.frontMatter.links);
-  const preview = notesPreviewFromBody(parsed.body, 140);
+  const tags = useMemo(() => mergeTags(memory, parsed.frontMatter.tags), [memory, parsed.frontMatter.tags]);
+  const links = useMemo(() => mergeLinks(memory, parsed.frontMatter.links), [memory, parsed.frontMatter.links]);
+  const preview = useMemo(() => notesPreviewFromBody(parsed.body, 140), [parsed.body]);
   const groupName = memory.groupId ? groups.find((g) => g.id === memory.groupId)?.name ?? null : null;
-  const thumb = getMemoryImages(memory)[0] ?? null;
+  const thumb = useMemo(() => getMemoryImages(memory)[0] ?? null, [memory.imageDataUrl, memory.imageDataUrls]);
   const label = memory.customLabel?.trim() || null;
 
   let linksSummary: string | null = null;

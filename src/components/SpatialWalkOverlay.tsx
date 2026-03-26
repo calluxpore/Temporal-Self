@@ -130,9 +130,13 @@ export function SpatialWalkOverlay({ memory }: SpatialWalkOverlayProps) {
   const moodEmoji = mood?.emoji ?? null;
   const firstImage = getMemoryImages(memory)[0] ?? null;
   const customEmoji = memory.customLabel?.trim() || null;
-  const parsedNotes = parseNotesFrontMatter(memory.notes ?? '');
-  const notesSnippet = (parsedNotes.body || '').trim().replace(/\s+/g, ' ').slice(0, 180);
-  const hasNotesSnippet = notesSnippet.length > 0;
+  const { notesSnippet, hasNotesSnippet, notesBodyLen } = useMemo(() => {
+    if (!revealed) return { notesSnippet: '', hasNotesSnippet: false, notesBodyLen: 0 };
+    const parsedNotes = parseNotesFrontMatter(memory.notes ?? '');
+    const body = (parsedNotes.body || '').trim();
+    const snippet = body.replace(/\s+/g, ' ').slice(0, 180);
+    return { notesSnippet: snippet, hasNotesSnippet: snippet.length > 0, notesBodyLen: body.length };
+  }, [revealed, memory.id, memory.notes]);
 
   return (
     <>
@@ -194,7 +198,7 @@ export function SpatialWalkOverlay({ memory }: SpatialWalkOverlayProps) {
               {hasNotesSnippet && (
                 <p className="line-clamp-3 text-xs text-text-secondary">
                   {notesSnippet}
-                  {(parsedNotes.body || '').trim().length > 180 ? '...' : ''}
+                  {notesBodyLen > 180 ? '...' : ''}
                 </p>
               )}
             </div>

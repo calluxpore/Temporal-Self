@@ -249,6 +249,46 @@ function hashRadiusPositions(memories: Memory[]): string {
   return (h >>> 0).toString(36);
 }
 
+/**
+ * Hash only fields that affect timeline geometry/order, so recall updates
+ * (reviewCount/nextReviewAt) don't force recalculating polylines.
+ */
+function hashTimelineInputs(memories: Memory[]): string {
+  let h = 2166136261;
+  for (const m of memories) {
+    // Geometry inputs
+    h ^= (Math.round(m.lat * 1e6) | 0);
+    h = Math.imul(h, 16777619);
+    h ^= (Math.round(m.lng * 1e6) | 0);
+    h = Math.imul(h, 16777619);
+
+    // Ordering inputs used by compareOrderThenCreatedAt
+    const order = m.order;
+    h ^= (order == null ? 2147483647 : (Math.round(order * 1000) | 0));
+    h = Math.imul(h, 16777619);
+
+    // createdAt tie-breaker (string stable; don't parse Date)
+    const created = m.createdAt ?? '';
+    for (let i = 0; i < created.length; i++) {
+      h ^= created.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+
+    // Group/visibility inputs
+    const gid = m.groupId ?? '';
+    h ^= gid.length;
+    h = Math.imul(h, 16777619);
+    for (let i = 0; i < gid.length; i++) {
+      h ^= gid.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+
+    h ^= m.hidden ? 1 : 0;
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
 function MapContent({
   memories,
   groups,
@@ -310,12 +350,7 @@ function MapContent({
   // Only include the fields used for timeline geometry so recall state updates
   // (e.g. spaced repetition `nextReviewAt` / `reviewCount`) don't force reroute jitter.
   const memoriesTimelineKey = useMemo(() => {
-    return memories
-      .map(
-        (m) =>
-          `${m.id}|${m.lat}|${m.lng}|${m.groupId ?? ''}|${m.hidden ?? false}|${m.order ?? ''}|${m.createdAt}`
-      )
-      .join(';');
+    return hashTimelineInputs(memories);
   }, [memories]);
   const memoryIdToLabel = useMemo(() => {
     const labels = new Map<string, string>();
@@ -399,7 +434,7 @@ function MapContent({
     }
 
     return { timelinePaths: paths, routeStartIds, routeEndIds };
-  }, [timelineEnabled, timelineLineStyle, spatialWalkActive, map, groups, hiddenGroupIds, memoriesTimelineKey]);
+  }, [timelineEnabled, timelineLineStyle, map, groups, hiddenGroupIds, memoriesTimelineKey]);
 
   return (
     <>

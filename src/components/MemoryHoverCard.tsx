@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { formatDate } from '../utils/formatDate';
 import { getMemoryImages } from '../utils/imageUtils';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
@@ -26,15 +27,21 @@ export function MemoryHoverCard({
   onStartDrag,
   isDragging,
 }: MemoryHoverCardProps) {
-  const parsed = parseNotesFrontMatter(memory.notes ?? '');
+  const parsed = useMemo(() => parseNotesFrontMatter(memory.notes ?? ''), [memory.notes]);
   const yamlLocation = parsed.frontMatter.location ?? null;
   const yamlDate = parsed.frontMatter.date ?? null;
 
   const { location, loading: locationLoading } = useReverseGeocode(memory.lat, memory.lng, { enabled: !isDragging && !yamlLocation });
-  const firstImage = getMemoryImages(memory)[0] ?? null;
-  const notesPreview = parsed.body?.trim()
-    ? parsed.body.trim().slice(0, 80) + (parsed.body.length > 80 ? '…' : '')
-    : null;
+  const firstImage = useMemo(() => getMemoryImages(memory)[0] ?? null, [
+    memory.imageDataUrl,
+    memory.imageDataUrls,
+    memory.imageDataUrls?.length,
+  ]);
+  const notesPreview = useMemo(() => {
+    const body = parsed.body?.trim();
+    if (!body) return null;
+    return body.slice(0, 80) + (parsed.body.length > 80 ? '…' : '');
+  }, [parsed.body]);
 
   return (
     <div
