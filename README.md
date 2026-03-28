@@ -17,7 +17,7 @@ Use this section if you are **cloning the repo**, **continuing development**, or
 ### Clone and install
 
 ```bash
-git clone https://github.com/<your-username>/Temporal-Self.git
+git clone https://github.com/calluxpore/Temporal-Self.git
 cd Temporal-Self
 npm install
 ```
